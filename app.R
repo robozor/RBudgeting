@@ -44,6 +44,11 @@ ui <- bs4DashPage(
         bs4SidebarMenuSubItem("Obsah", tabName = "content", icon = icon("table"))
       ),
       bs4SidebarMenuItem(
+        "Notifikace",
+        tabName = "notifications",
+        icon = icon("bell")
+      ),
+      bs4SidebarMenuItem(
         "Nastavení",
         icon = icon("cogs"),
         bs4SidebarMenuSubItem("Instalace systému", tabName = "setup", icon = icon("wrench")),
@@ -55,11 +60,9 @@ ui <- bs4DashPage(
   
   body = bs4DashBody(
     useShinyjs(),
-    
+
     # Skryj zbylé (nefunkční) theme přepínače
-    tags$head(tags$style(HTML(" 
-      .custom-control.custom-switch { display:none !important; }
-    "))),
+    tags$head(tags$style(HTML("\n      .custom-control.custom-switch { display:none !important; }\n      li.nav-item a[data-value='notifications'] { display:none !important; }\n    "))),
     
     # JS: Dark/Light přepínač s perzistencí + ikona moon/sun
     tags$script(HTML("
