@@ -12,6 +12,7 @@ if (utils::packageVersion("bs4Dash") < "2.0.0")
 source("R/db.R")
 source("R/mod_auth.R")
 source("R/mod_admin_users.R")
+source("R/mod_admin_notifications.R")
 source("R/mod_setup.R")
 source("R/help.R")   # kontextová nápověda (markdown)
 
@@ -53,7 +54,8 @@ ui <- bs4DashPage(
         icon = icon("cogs"),
         bs4SidebarMenuSubItem("Instalace systému", tabName = "setup", icon = icon("wrench")),
         bs4SidebarMenuSubItem("Přihlášení",        tabName = "login",  icon = icon("sign-in-alt")),
-        bs4SidebarMenuSubItem("Správa uživatelů",  tabName = "admin",  icon = icon("users-cog"))
+        bs4SidebarMenuSubItem("Správa uživatelů",  tabName = "admin",  icon = icon("users-cog")),
+        bs4SidebarMenuSubItem("Správa notifikací", tabName = "notify_admin", icon = icon("bell"))
       )
     )
   ),
@@ -104,6 +106,7 @@ ui <- bs4DashPage(
       bs4TabItem(tabName = "login",   mod_auth_ui("auth")),
       bs4TabItem(tabName = "content", uiOutput("content_panel")),
       bs4TabItem(tabName = "notifications", uiOutput("notifications_panel")),
+      bs4TabItem(tabName = "notify_admin", mod_admin_notifications_ui("notify")),
       bs4TabItem(tabName = "admin",   mod_admin_users_ui("admin"))
     )
   ),
@@ -281,16 +284,31 @@ server <- function(input, output, session){
     }
   })
 
-  # 10) Gate pro admin panel
+  # 10) Správa notifikací (jen pro adminy)
+  notify_inited <- reactiveVal(FALSE)
+  observe({
+    req(app_ready())
+    u <- current_user()
+    if (!is.null(u) && "admin" %in% u$roles && !notify_inited()) {
+      mod_admin_notifications_server("notify", get_db_pool())
+      notify_inited(TRUE)
+    }
+  })
+
+  # 11) Gate pro admin panely
   observe({
     req(app_ready())
     if (identical(input$sidebar_tabs, "admin") &&
         (is.null(current_user()) || !("admin" %in% current_user()$roles))) {
       updatebs4TabItems(session, "sidebar_tabs", "login")
     }
+    if (identical(input$sidebar_tabs, "notify_admin") &&
+        (is.null(current_user()) || !("admin" %in% current_user()$roles))) {
+      updatebs4TabItems(session, "sidebar_tabs", "login")
+    }
   })
 
-  # 11) Kontextová nápověda – render podle aktivního tabName
+  # 12) Kontextová nápověda – render podle aktivního tabName
   output$help_md <- renderUI({
     tab <- input$sidebar_tabs
     if (is.null(tab)) tab <- "index"
