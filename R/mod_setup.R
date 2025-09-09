@@ -55,14 +55,20 @@ mod_setup_ui <- function(id){
       column(
         width = 6,
         box(
-          title = tagList(icon("cogs"), span(" Krok 2 – Inicializace a admin")),
+          title = tagList(icon("cogs"), span(" Krok 2 – Inicializace")),
           status = "warning", solidHeader = TRUE, width = 12, closable = FALSE,
           uiOutput(ns("meta_status")),
           actionButton(ns("init"),
                        "Inicializovat metadata (vytvořit schéma app_meta)",
                        icon = icon("cog"), class = "btn btn-warning"
-          ),
-          tags$hr(),
+          )
+        )
+      ),
+      column(
+        width = 6,
+        box(
+          title = tagList(icon("user-shield"), span(" Krok 3 – Vytvoření admina")),
+          status = "success", solidHeader = TRUE, width = 12, closable = FALSE,
           textInput(ns("admin_email"), "Admin e-mail"),
           textInput(ns("admin_name"),  "Admin jméno"),
           passwordInput(ns("admin_pw"), "Admin heslo"),
@@ -211,7 +217,7 @@ group by u.user_id, u.email, u.display_name, u.is_active;
       run_ddl(con, ddl)
       showNotification("Metadata vytvořena.")
       output$meta_status <- renderUI(div(class="text-success",
-                                         "Metadata vytvořena – nyní vytvořte admin účet."))
+                                         "Metadata vytvořena – pokračujte krokem 3 a vytvořte admin účet."))
       shinyjs::disable(ns("init"))
     })
     
@@ -239,7 +245,17 @@ group by u.user_id, u.email, u.display_name, u.is_active;
         output$admin_status <- renderUI(div(class = "text-danger", "Metadata nejsou vytvořena."))
         return()
       }
-      
+
+      has_admin <- DBI::dbGetQuery(con,
+        "select exists(select 1 from app_meta.user_role ur join app_meta.role r on r.role_id=ur.role_id where r.code='admin') ok"
+      )$ok[[1]]
+      if (isTRUE(has_admin)) {
+        output$admin_status <- renderUI(div(class = "text-danger",
+                                           "Admin již existuje. Další uživatele musí vytvořit stávající admin."))
+        shinyjs::disable("mkadmin")
+        return()
+      }
+
       email <- tolower(trimws(input$admin_email))
       name  <- input$admin_name
       
@@ -264,6 +280,7 @@ group by u.user_id, u.email, u.display_name, u.is_active;
             sprintf("Uživatel %s už existuje (user_id=%s). Přiřadil jsem mu roli admin a ponechal původní heslo.",
                     email, uid)
           ))
+          shinyjs::disable("mkadmin")
         } else {
           # nový admin (nastaví se zadané heslo)
           ph  <- sodium::password_store(input$admin_pw)
@@ -283,6 +300,7 @@ group by u.user_id, u.email, u.display_name, u.is_active;
             sprintf("Admin vytvořen (user_id=%s).", uid)
           ))
           showNotification("Admin účet vytvořen.")
+          shinyjs::disable("mkadmin")
         }
       })
     })
