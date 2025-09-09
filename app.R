@@ -41,10 +41,19 @@ ui <- bs4DashPage(
     title = "Menu",
     bs4SidebarMenu(
       id = "sidebar_tabs",
-      bs4SidebarMenuItem("Instalace systému", tabName = "setup",   icon = icon("wrench")),
-      bs4SidebarMenuItem("Přihlášení",        tabName = "login",   icon = icon("sign-in-alt")),
-      bs4SidebarMenuItem("Obsah",             tabName = "content", icon = icon("table")),
-      bs4SidebarMenuItem("Správa uživatelů",  tabName = "admin",   icon = icon("users-cog"))
+      bs4SidebarMenuItem(
+        "Plánování",
+        icon = icon("calendar"),
+        startExpanded = TRUE,
+        bs4SidebarMenuSubItem("Obsah", tabName = "content", icon = icon("table"))
+      ),
+      bs4SidebarMenuItem(
+        "Nastavení",
+        icon = icon("cogs"),
+        bs4SidebarMenuSubItem("Instalace systému", tabName = "setup", icon = icon("wrench")),
+        bs4SidebarMenuSubItem("Přihlášení",        tabName = "login",  icon = icon("sign-in-alt")),
+        bs4SidebarMenuSubItem("Správa uživatelů",  tabName = "admin",  icon = icon("users-cog"))
+      )
     )
   ),
   
