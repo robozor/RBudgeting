@@ -32,8 +32,13 @@ mod_admin_users_server <- function(id, pool, on_roles_changed = NULL){
     users  <- reactive({ reload(); sql_list_users(pool) })
     
     output$tbl <- DT::renderDT({
-      DT::datatable(users(), selection = "single", rownames = FALSE,
-                    options = list(pageLength = 10, order = list(list(0, "asc"))))
+      DT::datatable(
+        users(),
+        selection = "single",
+        rownames = FALSE,
+        options = list(pageLength = 10, order = list(list(0, "asc"))),
+        style = "bootstrap4"
+      )
     }, server = TRUE)
     
     selected_user_id <- reactive({
