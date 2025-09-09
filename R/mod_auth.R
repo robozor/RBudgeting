@@ -44,6 +44,8 @@ mod_auth_server <- function(id, pool){
       sql_session_login(pool, session$token, u$user_id[1],
                         session$request$REMOTE_ADDR %||% NA,
                         session$request$HTTP_USER_AGENT %||% NA)
+      if (sql_notification_rule_active(pool, "login_logout"))
+        sql_insert_notification(pool, "Přihlášení", u$user_id[1])
       user_rv(list(
         user_id = u$user_id[1],
         email = u$email[1],
@@ -69,11 +71,24 @@ mod_auth_server <- function(id, pool){
       invisible(TRUE)
     }
     
-    session$onSessionEnded(function(){ try(sql_session_logout(pool, session$token), silent=TRUE) })
+    session$onSessionEnded(function(){
+      u <- user_rv()
+      if (!is.null(u) && sql_notification_rule_active(pool, "login_logout"))
+        sql_insert_notification(pool, "Odhlášení", u$user_id)
+      try(sql_session_logout(pool, session$token), silent=TRUE)
+    })
     
     list(
       user    = shiny::reactive(user_rv()),
-      logout  = function(){ u <- user_rv(); if(!is.null(u)) sql_session_logout(pool, session$token); user_rv(NULL) },
+      logout  = function(){
+        u <- user_rv()
+        if (!is.null(u)) {
+          sql_session_logout(pool, session$token)
+          if (sql_notification_rule_active(pool, "login_logout"))
+            sql_insert_notification(pool, "Odhlášení", u$user_id)
+        }
+        user_rv(NULL)
+      },
       refresh = refresh   # ← přidáno
     )
   })

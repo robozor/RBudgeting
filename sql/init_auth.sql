@@ -45,6 +45,16 @@ create table if not exists app_meta.notification(
   created_at      timestamptz not null default now()
 );
 
+create table if not exists app_meta.notification_rule(
+  code      text primary key,
+  title     text not null,
+  is_active boolean not null default false
+);
+
+insert into app_meta.notification_rule(code, title, is_active) values
+  ('login_logout', 'Notifikace přihlášení a odhlášení', false)
+on conflict do nothing;
+
 create or replace function app_meta.tg_updated_at() returns trigger
 language plpgsql as $$
 begin

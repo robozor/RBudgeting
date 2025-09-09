@@ -188,3 +188,20 @@ sql_mark_notifications_read <- function(pool, user_id){
                  "update app_meta.notification set is_read=true where user_id=$1 and not is_read",
                  params = list(user_id))
 }
+
+# SQL helpery (notifikační pravidla)
+sql_notification_rule_active <- function(pool, code){
+  row <- DBI::dbGetQuery(pool,
+                         "select is_active from app_meta.notification_rule where code=$1",
+                         params = list(code))
+  isTRUE(row$is_active[1])
+}
+sql_get_notification_rules <- function(pool){
+  DBI::dbGetQuery(pool,
+                  "select code, title, is_active from app_meta.notification_rule order by code")
+}
+sql_set_notification_rule_active <- function(pool, code, is_active){
+  DBI::dbExecute(pool,
+                 "update app_meta.notification_rule set is_active=$2 where code=$1",
+                 params = list(code, is_active))
+}
