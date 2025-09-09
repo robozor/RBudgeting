@@ -46,7 +46,7 @@ ui <- bs4DashPage(
       ),
       bs4SidebarMenuItem(
         "Notifikace",
-        tabName = "notifications",
+        tabName = "notifications_tab",
         icon = icon("bell")
       ),
       bs4SidebarMenuItem(
@@ -64,7 +64,7 @@ ui <- bs4DashPage(
     useShinyjs(),
 
     # Skryj zbylé (nefunkční) theme přepínače
-    tags$head(tags$style(HTML("\n      .custom-control.custom-switch { display:none !important; }\n      li.nav-item a[data-value='notifications'] { display:none !important; }\n    "))),
+    tags$head(tags$style(HTML("\n      .custom-control.custom-switch { display:none !important; }\n    "))),
     
     # JS: Dark/Light přepínač s perzistencí + ikona moon/sun
     tags$script(HTML("
@@ -105,7 +105,7 @@ ui <- bs4DashPage(
       bs4TabItem(tabName = "setup",   mod_setup_ui("setup")),
       bs4TabItem(tabName = "login",   mod_auth_ui("auth")),
       bs4TabItem(tabName = "content", uiOutput("content_panel")),
-      bs4TabItem(tabName = "notifications", uiOutput("notifications_panel")),
+      bs4TabItem(tabName = "notifications_tab", uiOutput("notifications_panel")),
       bs4TabItem(tabName = "notify_admin", mod_admin_notifications_ui("notify")),
       bs4TabItem(tabName = "admin",   mod_admin_users_ui("admin"))
     )
@@ -200,7 +200,7 @@ server <- function(input, output, session){
   })
 
   observeEvent(input$open_notifications, {
-    updatebs4TabItems(session, "sidebar_tabs", "notifications")
+    updatebs4TabItems(session, "sidebar_tabs", "notifications_tab")
   })
 
   # 5) Routing podle stavu aplikace/uživatele
@@ -242,7 +242,7 @@ server <- function(input, output, session){
   })
 
   observeEvent(input$sidebar_tabs, {
-    if (identical(input$sidebar_tabs, "notifications") && !is.null(current_user())) {
+    if (identical(input$sidebar_tabs, "notifications_tab") && !is.null(current_user())) {
       sql_mark_notifications_read(get_db_pool(), current_user()$user_id)
       user_notifications(sql_get_notifications(get_db_pool(), current_user()$user_id))
     }
