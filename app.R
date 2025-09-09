@@ -170,13 +170,18 @@ server <- function(input, output, session){
     lbl <- if (is.null(cu)) "Přihlásit se" else "Odhlásit se"
     footer <- tagList(
       if (n > 0) dropdownDivider(),
-      actionLink("open_notifications", "Notifikace", class = "dropdown-item"),
-      actionLink("login_logout", lbl, class = "dropdown-item")
+      div(
+        class = "dropdown-footer",
+        actionLink("open_notifications", "Notifikace", class = "dropdown-item"),
+        actionLink("login_logout", lbl, class = "dropdown-item")
+      )
     )
     bs4DropdownMenu(
       type = "notifications", icon = icon("user"),
+      header = paste(n, "notifications"),
       .list = items,
       badgeStatus = if (n > 0) "danger" else NULL,
+      badgeText = if (n > 0) n else NULL,
       footer = footer
     )
   })
