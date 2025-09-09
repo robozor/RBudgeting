@@ -175,7 +175,8 @@ server <- function(input, output, session){
     bs4DropdownMenu(
       type = "notifications", icon = icon("user"),
       .list = items,
-      badgeStatus = if (n > 0) "danger" else NULL
+      badgeStatus = if (n > 0) "danger" else NULL,
+      show = if (n > 0) n else NULL
     )
   })
 
