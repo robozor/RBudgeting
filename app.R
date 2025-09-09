@@ -162,21 +162,22 @@ server <- function(input, output, session){
       ns <- user_notifications()
       n <- nrow(ns)
       if (n > 0) {
-        for (i in seq_len(n))
+        for (i in seq_len(n)) {
           items[[length(items) + 1]] <- notificationItem(ns$message[i], icon = icon("bell"))
-        items[[length(items) + 1]] <- dropdownDivider()
+        }
       }
     }
-    items[[length(items) + 1]] <- actionLink("open_notifications", "Notifikace",
-                                             class = "dropdown-item")
     lbl <- if (is.null(cu)) "Přihlásit se" else "Odhlásit se"
-    items[[length(items) + 1]] <- actionLink("login_logout", lbl,
-                                             class = "dropdown-item")
+    footer <- tagList(
+      if (n > 0) dropdownDivider(),
+      actionLink("open_notifications", "Notifikace", class = "dropdown-item"),
+      actionLink("login_logout", lbl, class = "dropdown-item")
+    )
     bs4DropdownMenu(
       type = "notifications", icon = icon("user"),
       .list = items,
       badgeStatus = if (n > 0) "danger" else NULL,
-      show = n
+      footer = footer
     )
   })
 
