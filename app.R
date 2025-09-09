@@ -159,19 +159,24 @@ server <- function(input, output, session){
   })
 
   output$user_menu <- renderMenu({
-    ns <- user_notifications()
     cu <- current_user()
-    n <- 0
+    ns <- if (is.null(cu)) data.frame() else user_notifications()
+    n  <- nrow(ns)
+
     items <- list()
-    if (!is.null(cu)) {
-      n <- nrow(ns)
-      if (n > 0) {
-        for (i in seq_len(n)) {
-          items[[length(items) + 1]] <- notificationItem(ns$message[i], icon = icon("bell"))
-        }
+    if (n > 0) {
+      for (i in seq_len(n)) {
+        items[[length(items) + 1]] <- notificationItem(ns$message[i], icon = icon("bell"))
       }
     }
+
     lbl <- if (is.null(cu)) "Přihlásit se" else "Odhlásit se"
+    header <- if (is.null(cu)) "" else if (n > 0) {
+      sprintf("Máte %d %s", n, if (n < 5) "notifikace" else "notifikací")
+    } else {
+      "Žádné notifikace"
+    }
+
     footer <- tagList(
       if (n > 0) dropdownDivider(),
       div(
@@ -180,11 +185,13 @@ server <- function(input, output, session){
         actionLink("login_logout", lbl, class = "dropdown-item")
       )
     )
+
     bs4DropdownMenu(
       type = "notifications", icon = icon("user"),
       .list = items,
-      badgeStatus = if (n > 0) "danger" else NULL,
-      badgeText = if (n > 0) n else NULL,
+      badgeStatus = if (n > 0 && !is.null(cu)) "danger" else NULL,
+      badgeText   = if (n > 0 && !is.null(cu)) n else NULL,
+      headerText  = header,
       footer = footer
     )
   })
