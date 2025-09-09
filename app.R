@@ -164,9 +164,11 @@ server <- function(input, output, session){
         items[[length(items) + 1]] <- dropdownDivider()
       }
     }
-    items[[length(items) + 1]] <- dropdownItem("Notifikace", id = "open_notifications")
+    items[[length(items) + 1]] <- actionLink("open_notifications", "Notifikace",
+                                             class = "dropdown-item")
     lbl <- if (is.null(cu)) "Přihlásit se" else "Odhlásit se"
-    items[[length(items) + 1]] <- dropdownItem(lbl, id = "login_logout")
+    items[[length(items) + 1]] <- actionLink("login_logout", lbl,
+                                             class = "dropdown-item")
     bs4DropdownMenu(
       type = "notifications", icon = icon("user"),
       .list = items,
