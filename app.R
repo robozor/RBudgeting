@@ -147,19 +147,23 @@ server <- function(input, output, session){
   # 4) Notifikace pro aktuálního uživatele
   user_notifications <- reactiveVal(data.frame())
   observe({
-    req(app_ready(), current_user())
-    invalidateLater(10000, session)
-    pool <- get_db_pool()
+    req(app_ready())
     cu <- current_user()
-    user_notifications(sql_get_notifications(pool, cu$user_id))
+    if (is.null(cu)) {
+      user_notifications(data.frame())
+    } else {
+      invalidateLater(10000, session)
+      pool <- get_db_pool()
+      user_notifications(sql_get_notifications(pool, cu$user_id))
+    }
   })
 
   output$user_menu <- renderMenu({
+    ns <- user_notifications()
     cu <- current_user()
     n <- 0
     items <- list()
     if (!is.null(cu)) {
-      ns <- user_notifications()
       n <- nrow(ns)
       if (n > 0) {
         for (i in seq_len(n)) {
