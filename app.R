@@ -176,7 +176,7 @@ server <- function(input, output, session){
       type = "notifications", icon = icon("user"),
       .list = items,
       badgeStatus = if (n > 0) "danger" else NULL,
-      show = if (n > 0) n else NULL
+      show = n
     )
   })
 
