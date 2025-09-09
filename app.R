@@ -60,9 +60,9 @@ ui <- bs4DashPage(
   body = bs4DashBody(
     useShinyjs(),
     
-    # Skryj všechny demo/theme switche v navbaru
-    tags$head(tags$style(HTML("
-      .main-header .navbar .custom-control.custom-switch { display:none !important; }
+    # Skryj zbylé (nefunkční) theme přepínače
+    tags$head(tags$style(HTML(" 
+      .custom-control.custom-switch { display:none !important; }
     "))),
     
     # JS: Dark/Light přepínač s perzistencí + ikona moon/sun
@@ -77,6 +77,11 @@ ui <- bs4DashPage(
           if ($i.length){
             $i.removeClass('fa-moon fa-sun').addClass(dark ? 'fa-sun' : 'fa-moon');
           }
+          var $sidebar = $('aside.main-sidebar');
+          if ($sidebar.length){
+            $sidebar.removeClass('sidebar-dark-primary sidebar-light-primary')
+                    .addClass(dark ? 'sidebar-dark-primary' : 'sidebar-light-primary');
+          }
         }
         // Apply at start
         $(applyState);
@@ -84,7 +89,6 @@ ui <- bs4DashPage(
         $(document).on('click', '#toggle_dark', function(e){
           e.preventDefault();
           var dark = !$('body').hasClass('dark-mode');
-          $('body').toggleClass('dark-mode', dark);
           localStorage.setItem(key, dark ? '1' : '0');
           applyState();
         });
