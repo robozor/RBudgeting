@@ -158,7 +158,7 @@ server <- function(input, output, session){
   output$content_panel <- renderUI({
     req(app_ready(), current_user())
     u <- current_user()
-    bs4Box(
+    box(
       title = tagList(icon("table"), span(" Obsah")),
       status = "primary", width = 12, solidHeader = TRUE, closable = FALSE, maximizable = FALSE,
       HTML(sprintf("<p><b>Přihlášený uživatel:</b> %s &lt;%s&gt;</p>", u$display_name, u$email)),
