@@ -82,6 +82,11 @@ ui <- bs4DashPage(
             $sidebar.removeClass('sidebar-dark-primary sidebar-light-primary')
                     .addClass(dark ? 'sidebar-dark-primary' : 'sidebar-light-primary');
           }
+          var $cbar = $('aside.control-sidebar');
+          if ($cbar.length){
+            $cbar.removeClass('control-sidebar-dark control-sidebar-light')
+                 .addClass(dark ? 'control-sidebar-dark' : 'control-sidebar-light');
+          }
         }
         // Apply at start
         $(applyState);
