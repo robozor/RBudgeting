@@ -107,22 +107,20 @@ mod_setup_server <- function(id){
         div(class = if (isTRUE(res$ok)) "text-success" else "text-danger",
             if (isTRUE(res$ok)) "Připojení OK" else paste("Chyba:", res$msg))
       )
-      # check metadata existence
+      # check metadata existence (informational only)
       try({
         con <- DBI::dbConnect(RPostgres::Postgres(),
-                              host=cfg$host, port=as.integer(cfg$port),
-                              dbname=cfg$dbname, user=cfg$user, password=cfg$password)
-        on.exit(DBI::dbDisconnect(con), add=TRUE)
+                              host = cfg$host, port = as.integer(cfg$port),
+                              dbname = cfg$dbname, user = cfg$user, password = cfg$password)
+        on.exit(DBI::dbDisconnect(con), add = TRUE)
         has <- DBI::dbGetQuery(con,
                                "select exists(select 1 from information_schema.schemata where schema_name='app_meta') as ok")$ok
         if (isTRUE(has)) {
-          output$meta_status <- renderUI(div(class="text-danger",
-                                             "Metadata již existují v této DB – instalace je blokována."))
-          shinyjs::disable(ns("init"))
+          output$meta_status <- renderUI(div(class = "text-warning",
+                                             "Metadata již existují – skript lze spustit znovu pro doplnění chybějících objektů."))
         } else {
-          output$meta_status <- renderUI(div(class="text-success",
-                                             "Metadata nenalezena – lze instalovat."))
-          shinyjs::enable(ns("init"))
+          output$meta_status <- renderUI(div(class = "text-success",
+                                             "Metadata nenalezena – spustit inicializaci."))
         }
       }, silent = TRUE)
     })
@@ -137,15 +135,19 @@ mod_setup_server <- function(id){
     observeEvent(input$init, {
       cfg <- cfg_reactive()
       con <- try(DBI::dbConnect(RPostgres::Postgres(),
-                                host=cfg$host, port=as.integer(cfg$port),
-                                dbname=cfg$dbname, user=cfg$user, password=cfg$password), silent=TRUE)
-      if (inherits(con, "try-error")) { showNotification("Nelze se připojit k DB", type="error"); return() }
-      on.exit(DBI::dbDisconnect(con), add=TRUE)
-      
+                                host = cfg$host, port = as.integer(cfg$port),
+                                dbname = cfg$dbname, user = cfg$user, password = cfg$password), silent = TRUE)
+      if (inherits(con, "try-error")) { showNotification("Nelze se připojit k DB", type = "error"); return() }
+      on.exit(DBI::dbDisconnect(con), add = TRUE)
+
       has <- DBI::dbGetQuery(con,
                              "select exists(select 1 from information_schema.schemata where schema_name='app_meta') as ok")$ok
-      if (isTRUE(has)) { showNotification("Metadata již existují – inicializace zablokována.", type="error"); return() }
-      
+      if (isTRUE(has)) {
+        showNotification("Metadata již existují – provádím aktualizaci.")
+      } else {
+        showNotification("Metadata nenalezena – provádím inicializaci.")
+      }
+
       # načti externí SQL, jinak fallback (viz /sql/init_auth.sql)
       ddl <- NULL; path <- "sql/init_auth.sql"
       if (file.exists(path)) ddl <- readChar(path, file.info(path)$size)
@@ -215,10 +217,9 @@ group by u.user_id, u.email, u.display_name, u.is_active;
       }
       
       run_ddl(con, ddl)
-      showNotification("Metadata vytvořena.")
-      output$meta_status <- renderUI(div(class="text-success",
-                                         "Metadata vytvořena – pokračujte krokem 3 a vytvořte admin účet."))
-      shinyjs::disable(ns("init"))
+      output$meta_status <- renderUI(div(class = "text-success",
+                                         "Metadata vytvořena / aktualizována."))
+      showNotification("Metadata vytvořena / aktualizována.")
     })
     
     observeEvent(input$mkadmin, {

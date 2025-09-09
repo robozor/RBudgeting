@@ -37,6 +37,14 @@ create table if not exists app_meta.session_log(
   user_agent  text
 );
 
+create table if not exists app_meta.notification(
+  notification_id bigserial primary key,
+  user_id         bigint references app_meta.user_account(user_id) on delete cascade,
+  message         text not null,
+  is_read         boolean not null default false,
+  created_at      timestamptz not null default now()
+);
+
 create or replace function app_meta.tg_updated_at() returns trigger
 language plpgsql as $$
 begin

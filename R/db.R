@@ -157,3 +157,34 @@ sql_reset_password <- function(pool, user_id, password_hash){
   DBI::dbExecute(pool, "update app_meta.user_account set password_hash=$2 where user_id=$1",
                  params=list(user_id, password_hash))
 }
+
+# SQL helpery (notifikace)
+sql_insert_notification <- function(pool, message, user_id = NULL){
+  if (is.null(user_id)) {
+    uids <- DBI::dbGetQuery(pool,
+                            "select user_id from app_meta.user_account where is_active")$user_id
+    for (uid in uids) {
+      DBI::dbExecute(pool,
+                     "insert into app_meta.notification(user_id, message) values($1,$2)",
+                     params = list(uid, message))
+    }
+  } else {
+    DBI::dbExecute(pool,
+                   "insert into app_meta.notification(user_id, message) values($1,$2)",
+                   params = list(user_id, message))
+  }
+}
+
+sql_get_notifications <- function(pool, user_id){
+  DBI::dbGetQuery(
+    pool,
+    "select notification_id, message, created_at\n       from app_meta.notification\n      where user_id=$1 and not is_read\n      order by created_at desc",
+    params = list(user_id)
+  )
+}
+
+sql_mark_notifications_read <- function(pool, user_id){
+  DBI::dbExecute(pool,
+                 "update app_meta.notification set is_read=true where user_id=$1 and not is_read",
+                 params = list(user_id))
+}
