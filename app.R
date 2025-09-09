@@ -28,11 +28,7 @@ ui <- bs4DashPage(
                      title = "Dark/Light", icon("moon"))
       ),
       # Uživatelské menu (zatím 1 akce pro login/logout)
-      bs4DropdownMenu(
-        type = "notifications", icon = icon("user"), headerText = NULL,
-        tags$a(id = "login_logout", href = "#",
-               class = "dropdown-item action-button", "Přihlásit se")
-      )
+      dropdownMenuOutput("user_menu")
     )
   ),
   
@@ -104,6 +100,7 @@ ui <- bs4DashPage(
       bs4TabItem(tabName = "setup",   mod_setup_ui("setup")),
       bs4TabItem(tabName = "login",   mod_auth_ui("auth")),
       bs4TabItem(tabName = "content", uiOutput("content_panel")),
+      bs4TabItem(tabName = "notifications", uiOutput("notifications_panel")),
       bs4TabItem(tabName = "admin",   mod_admin_users_ui("admin"))
     )
   ),
@@ -143,8 +140,45 @@ server <- function(input, output, session){
     a <- auth_mod(); if (is.null(a)) return(NULL)
     a$user()
   })
-  
-  # 4) Routing podle stavu aplikace/uživatele
+
+  # 4) Notifikace pro aktuálního uživatele
+  user_notifications <- reactiveVal(data.frame())
+  observe({
+    req(app_ready(), current_user())
+    invalidateLater(10000, session)
+    pool <- get_db_pool()
+    cu <- current_user()
+    user_notifications(sql_get_notifications(pool, cu$user_id))
+  })
+
+  output$user_menu <- renderMenu({
+    cu <- current_user()
+    n <- 0
+    items <- list()
+    if (!is.null(cu)) {
+      ns <- user_notifications()
+      n <- nrow(ns)
+      if (n > 0) {
+        for (i in seq_len(n))
+          items[[length(items) + 1]] <- notificationItem(ns$message[i], icon = icon("bell"))
+        items[[length(items) + 1]] <- dropdownDivider()
+      }
+    }
+    items[[length(items) + 1]] <- dropdownItem("Notifikace", id = "open_notifications")
+    lbl <- if (is.null(cu)) "Přihlásit se" else "Odhlásit se"
+    items[[length(items) + 1]] <- dropdownItem(lbl, id = "login_logout")
+    bs4DropdownMenu(
+      type = "notifications", icon = icon("user"),
+      .list = items,
+      badgeStatus = if (n > 0) "danger" else NULL
+    )
+  })
+
+  observeEvent(input$open_notifications, {
+    updatebs4TabItems(session, "sidebar_tabs", "notifications")
+  })
+
+  # 5) Routing podle stavu aplikace/uživatele
   observe({
     if (!isTRUE(app_ready())) {
       updatebs4TabItems(session, "sidebar_tabs", "setup")
@@ -155,13 +189,6 @@ server <- function(input, output, session){
     }
   })
   
-  # 5) Label „Přihlásit/odhlásit“ v uživatelském menu (dropdown)
-  observe({
-    lbl <- if (is.null(current_user())) "Přihlásit se" else "Odhlásit se"
-    shinyjs::runjs(sprintf("$('#login_logout').text('%s')", lbl))
-  })
-  
-
   # 6) Klik na login/logout
   observeEvent(input$login_logout, {
     if (is.null(current_user())) {
@@ -172,7 +199,31 @@ server <- function(input, output, session){
     }
   })
 
-  # 7) Obsah – info o uživateli
+  # 7) Panel notifikací
+  output$notifications_panel <- renderUI({
+    req(app_ready(), current_user())
+    ns <- user_notifications()
+    if (nrow(ns) == 0) {
+      box(title = tagList(icon("bell"), span(" Notifikace")),
+          status = "primary", width = 12, solidHeader = TRUE,
+          closable = FALSE, maximizable = FALSE,
+          "Žádné notifikace.")
+    } else {
+      box(title = tagList(icon("bell"), span(" Notifikace")),
+          status = "primary", width = 12, solidHeader = TRUE,
+          closable = FALSE, maximizable = FALSE,
+          tags$ul(lapply(seq_len(nrow(ns)), function(i) tags$li(ns$message[i]))))
+    }
+  })
+
+  observeEvent(input$sidebar_tabs, {
+    if (identical(input$sidebar_tabs, "notifications") && !is.null(current_user())) {
+      sql_mark_notifications_read(get_db_pool(), current_user()$user_id)
+      user_notifications(sql_get_notifications(get_db_pool(), current_user()$user_id))
+    }
+  })
+
+  # 8) Obsah – info o uživateli
   output$content_panel <- renderUI({
     req(app_ready(), current_user())
     u <- current_user()
@@ -184,7 +235,7 @@ server <- function(input, output, session){
     )
   })
 
-  # 8) Admin modul jen pro adminy + refresh vlastních rolí po změně
+  # 9) Admin modul jen pro adminy + refresh vlastních rolí po změně
   admin_inited <- reactiveVal(FALSE)
   observe({
     req(app_ready())
@@ -208,7 +259,7 @@ server <- function(input, output, session){
     }
   })
 
-  # 9) Gate pro admin panel
+  # 10) Gate pro admin panel
   observe({
     req(app_ready())
     if (identical(input$sidebar_tabs, "admin") &&
@@ -217,7 +268,7 @@ server <- function(input, output, session){
     }
   })
 
-  # 10) Kontextová nápověda – render podle aktivního tabName
+  # 11) Kontextová nápověda – render podle aktivního tabName
   output$help_md <- renderUI({
     tab <- input$sidebar_tabs
     if (is.null(tab)) tab <- "index"
