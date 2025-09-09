@@ -8,7 +8,7 @@ mod_auth_ui <- function(id){
   fluidRow(
     column(
       width = 6, offset = 3,
-      bs4Box(
+      box(
         title = tagList(icon("sign-in-alt"), span(" Přihlášení")),
         status = "primary", solidHeader = TRUE, width = 12, closable = FALSE,
         textInput(ns("email"), "E-mail"),

@@ -1,10 +1,10 @@
-# R/mod_admin_users.R — správa uživatelů (bs4Box + shiny::modalDialog modály)
+# R/mod_admin_users.R — správa uživatelů (box + shiny::modalDialog modály)
 
 mod_admin_users_ui <- function(id){
   ns <- NS(id)
   tagList(
     fluidRow(
-      bs4Box(
+      box(
         title = tagList(icon("users-cog"), span(" Uživatelé")),
         status = "primary", solidHeader = TRUE, width = 12, closable = FALSE,
         DT::DTOutput(ns("tbl")),

@@ -38,7 +38,7 @@ mod_setup_ui <- function(id){
     fluidRow(
       column(
         width = 6,
-        bs4Box(
+        box(
           title = tagList(icon("database"), span(" Krok 1 – Připojení k databázi")),
           status = "info", solidHeader = TRUE, width = 12, closable = FALSE,
           textInput(ns("host"),   "Host",   value = "127.0.0.1"),
@@ -54,7 +54,7 @@ mod_setup_ui <- function(id){
       ),
       column(
         width = 6,
-        bs4Box(
+        box(
           title = tagList(icon("cogs"), span(" Krok 2 – Inicializace a admin")),
           status = "warning", solidHeader = TRUE, width = 12, closable = FALSE,
           uiOutput(ns("meta_status")),
