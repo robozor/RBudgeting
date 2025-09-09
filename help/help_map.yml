@@ -1,0 +1,6 @@
+# help/help_map.yml — mapování tabName → markdown soubor
+setup:   help/setup.md
+login:   help/login.md
+content: help/content.md
+admin:   help/admin.md
+index:   help/index.md
