@@ -39,7 +39,7 @@ app_ui <- function(request) {
           bs4Dash::dropdownMenuOutput("notifications")
         ),
         shiny::tags$li(
-          class = "nav-item",
+          class = "nav-item dropdown",
           shinyWidgets::materialSwitch(
             inputId = "theme_toggle",
             label = "Dark mode",
@@ -47,7 +47,7 @@ app_ui <- function(request) {
           )
         ),
         shiny::tags$li(
-          class = "nav-item",
+          class = "nav-item dropdown",
           shiny::actionButton(
             "logout",
             label = "Logout",
