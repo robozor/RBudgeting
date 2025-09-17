@@ -168,6 +168,29 @@ app_ui <- function(request) {
     )
   )
 
+  secure_wrapper <- shinymanager::secure_app(
+    ui = secure_ui,
+    language = app_settings$language,
+    enable_admin = TRUE,
+    tags_top = shiny::tags$div(
+      shiny::tags$h2("RBudgeting"),
+      shiny::tags$p("Secure authentication provided by shinymanager.")
+    ),
+    theme = NULL
+  )
+
+  secure_content <- resolve_shiny_ui(
+    secure_wrapper,
+    request = request,
+    context = "app_ui.secure_app"
+  )
+  message(
+    sprintf(
+      "[app_ui] secure_content resolved. Class: %s",
+      paste(class(secure_content), collapse = ", ")
+    )
+  )
+
   final_ui <- add_app_dependencies(
     shiny::tagList(
       shinyjs::useShinyjs(),
@@ -177,16 +200,7 @@ app_ui <- function(request) {
       shiny::div(
         id = "secure-content",
         class = "secure-hidden",
-        shinymanager::secure_app(
-          ui = secure_ui,
-          language = app_settings$language,
-          enable_admin = TRUE,
-          tags_top = shiny::tags$div(
-            shiny::tags$h2("RBudgeting"),
-            shiny::tags$p("Secure authentication provided by shinymanager.")
-          ),
-          theme = NULL
-        )
+        secure_content
       )
     )
   )
