@@ -7,44 +7,67 @@
 #' @return A function compatible with `shinymanager::secure_server`.
 credential_checker <- function(conn_reactive) {
   force(conn_reactive)
+
+  sanitize_field <- function(value, default = "") {
+    if (missing(value) || is.null(value)) {
+      return(default)
+    }
+
+    coerced <- tryCatch(as.character(value), error = function(e) character())
+    if (length(coerced) == 0 || is.na(coerced[1]) || !nzchar(coerced[1])) {
+      default
+    } else {
+      coerced[1]
+    }
+  }
+
+  failure_response <- function(message, attempted_user) {
+    list(
+      result = FALSE,
+      message = message,
+      user = sanitize_field(attempted_user),
+      admin = FALSE,
+      expire = NA,
+      token = NULL,
+      info = list()
+    )
+  }
+
   function(user, password) {
     conn <- conn_reactive()
     if (is.null(conn) || !DBI::dbIsValid(conn)) {
-      return(list(result = FALSE, message = "Database connection unavailable."))
+      return(failure_response("Database connection unavailable.", user))
     }
 
     record <- db_get_user(conn, user)
     if (is.null(record)) {
-      return(list(result = FALSE, message = "Unknown user"))
+      return(failure_response("Unknown user", user))
     }
 
     if (!isTRUE(record$is_active)) {
-      return(list(result = FALSE, message = "Account disabled"))
+      return(failure_response("Account disabled", user))
     }
 
     valid <- shinymanager::check_password(record$password, password)
     if (!isTRUE(valid)) {
-      return(list(result = FALSE, message = "Invalid credentials"))
+      return(failure_response("Invalid credentials", user))
     }
 
-    fullname <- record$fullname
-    if (!is.character(fullname) || length(fullname) == 0 || is.na(fullname) || !nzchar(fullname)) {
-      fullname <- record$username
-    }
+    username <- sanitize_field(record$username, default = sanitize_field(user))
+    role <- sanitize_field(record$role, default = "user")
 
-    # V aplikaci se shinymanager snažil převést návratový objekt na text a narazil na closure,
-    # protože jsme neposkytli očekávané textové pole `user`. Přidáním explicitní hodnoty
-    # uživatele a doplňkových metadat vracíme strukturu, se kterou umí balíček správně pracovat.
+    fullname <- sanitize_field(record$fullname, default = username)
+
     list(
       result = TRUE,
-      user = as.character(record$username),
-      admin = identical(as.character(record$role), "admin"),
+      user = username,
+      admin = identical(role, "admin"),
       expire = NA,
-      token = sprintf("rbudgeting-%s-%s", record$username, as.integer(Sys.time())),
+      token = sprintf("rbudgeting-%s-%s", username, as.integer(Sys.time())),
       info = list(
         id = record$id,
         fullname = fullname,
-        role = as.character(record$role)
+        role = role
       )
     )
   }
