@@ -6,6 +6,39 @@ app_sys <- function(...) {
   system.file(..., package = "RBudgeting")
 }
 
+log_debug <- function(tag, ...) {
+  fragments <- lapply(list(...), function(piece) {
+    if (is.null(piece)) {
+      return("NULL")
+    }
+    if (is.character(piece)) {
+      return(paste(piece, collapse = ""))
+    }
+    if (is.list(piece) || is.environment(piece)) {
+      return(
+        tryCatch(
+          paste(capture.output(utils::str(piece)), collapse = " | "),
+          error = function(e) sprintf("<unserializable: %s>", conditionMessage(e))
+        )
+      )
+    }
+    tryCatch(
+      toString(piece),
+      error = function(e) sprintf("<unserializable: %s>", conditionMessage(e))
+    )
+  })
+
+  message(sprintf("[%s] %s", tag, paste(fragments, collapse = "")))
+}
+
+log_structure <- function(tag, value) {
+  details <- tryCatch(
+    paste(capture.output(utils::str(value)), collapse = " | "),
+    error = function(e) sprintf("<unable to inspect: %s>", conditionMessage(e))
+  )
+  message(sprintf("[%s] %s", tag, details))
+}
+
 #' Retrieve sanitized application settings
 #'
 #' Ensures configuration values coming from `golem-config.yml` are usable in the
@@ -17,65 +50,162 @@ get_app_settings <- function() {
   settings <- cfg$app
 
   if (is.null(settings) || !is.list(settings)) {
+    log_debug("get_app_settings", "App configuration missing or invalid, using defaults.")
     settings <- list()
   }
+
+  log_structure("get_app_settings.raw", settings)
 
   language <- sanitize_scalar_character(settings$language, default = "en")
 
   default_theme <- sanitize_scalar_character(settings$default_theme, default = "light")
   allowed_themes <- c("light", "dark")
   if (!default_theme %in% allowed_themes) {
+    log_debug(
+      "get_app_settings",
+      "Unsupported default_theme received.",
+      " Fallback to 'light'."
+    )
     default_theme <- "light"
   }
+
+  message(
+    sprintf(
+      "[get_app_settings] Sanitized values -> language: '%s', default_theme: '%s'",
+      language,
+      default_theme
+    )
+  )
 
   list(language = language, default_theme = default_theme)
 }
 
 sanitize_scalar_character <- function(value, default = "", allow_empty = FALSE) {
   if (is.null(value) || is.function(value)) {
+    log_debug(
+      "sanitize_scalar_character",
+      "Received ",
+      if (is.null(value)) "NULL" else "function",
+      "; returning default '",
+      default,
+      "'."
+    )
     return(default)
   }
 
-  coerced <- tryCatch(as.character(value), error = function(e) character())
+  coerced <- tryCatch(
+    as.character(value),
+    error = function(e) {
+      log_debug(
+        "sanitize_scalar_character",
+        "Coercion error: ",
+        conditionMessage(e),
+        ". Returning default '",
+        default,
+        "'."
+      )
+      character()
+    }
+  )
   if (length(coerced) == 0) {
+    log_debug(
+      "sanitize_scalar_character",
+      "Coercion produced empty result; returning default '",
+      default,
+      "'."
+    )
     return(default)
   }
 
   candidate <- coerced[[1]]
   if (is.na(candidate)) {
+    log_debug(
+      "sanitize_scalar_character",
+      "First coerced value is NA; returning default '",
+      default,
+      "'."
+    )
     return(default)
   }
 
   candidate <- trimws(candidate)
   if (!allow_empty && !nzchar(candidate)) {
+    log_debug(
+      "sanitize_scalar_character",
+      "Trimmed value empty and empty not allowed; returning default '",
+      default,
+      "'."
+    )
     return(default)
   }
 
+  log_debug("sanitize_scalar_character", "Returning sanitized value '", candidate, "'.")
   candidate
 }
 
 sanitize_scalar_integer <- function(value, default = NA_integer_, min = NULL, max = NULL) {
   if (is.null(value) || is.function(value)) {
+    log_debug(
+      "sanitize_scalar_integer",
+      "Received ",
+      if (is.null(value)) "NULL" else "function",
+      "; returning default '",
+      default,
+      "'."
+    )
     return(default)
   }
 
   coerced <- suppressWarnings(as.integer(value))
   if (length(coerced) == 0) {
+    log_debug(
+      "sanitize_scalar_integer",
+      "Coercion produced empty result; returning default '",
+      default,
+      "'."
+    )
     return(default)
   }
 
   candidate <- coerced[[1]]
   if (is.na(candidate)) {
+    log_debug(
+      "sanitize_scalar_integer",
+      "First coerced value is NA; returning default '",
+      default,
+      "'."
+    )
     return(default)
   }
 
   if (!is.null(min) && candidate < min) {
+    log_debug(
+      "sanitize_scalar_integer",
+      "Value ",
+      candidate,
+      " is below minimum ",
+      min,
+      "; returning default '",
+      default,
+      "'."
+    )
     return(default)
   }
   if (!is.null(max) && candidate > max) {
+    log_debug(
+      "sanitize_scalar_integer",
+      "Value ",
+      candidate,
+      " exceeds maximum ",
+      max,
+      "; returning default '",
+      default,
+      "'."
+    )
     return(default)
   }
 
+  log_debug("sanitize_scalar_integer", "Returning sanitized value ", candidate, ".")
   candidate
 }
 
