@@ -1,310 +1,144 @@
-# R/mod_setup.R — instalační wizard (DB připojení, inicializace, admin)
-
-if (!requireNamespace("yaml", quietly = TRUE))      stop("Install 'yaml'")
-if (!requireNamespace("RPostgres", quietly = TRUE)) stop("Install 'RPostgres'")
-
-# robustní split SQL (respektuje $$ ... $$ bloky)
-split_sql <- function(ddl){
-  ch <- strsplit(ddl, "", fixed=TRUE)[[1]]
-  in_dollar <- FALSE
-  buf <- ""; stmts <- character()
-  i <- 1
-  while (i <= length(ch)){
-    if (ch[i] == "$" && i < length(ch) && ch[i+1] == "$"){
-      in_dollar <- !in_dollar
-      buf <- paste0(buf, "$$")
-      i <- i + 2
-      next
-    }
-    if (!in_dollar && ch[i] == ";"){
-      if (nzchar(trimws(buf))) stmts <- c(stmts, buf)
-      buf <- ""; i <- i + 1; next
-    }
-    buf <- paste0(buf, ch[i]); i <- i + 1
-  }
-  if (nzchar(trimws(buf))) stmts <- c(stmts, buf)
-  trimws(stmts)
-}
-run_ddl <- function(con, ddl){
-  stmts <- if (length(ddl) == 1) split_sql(ddl) else ddl
-  for (s in stmts){ if (nzchar(s)) DBI::dbExecute(con, s) }
-}
-
-# --- UI: Instalační průvodce (shinydashboardPlus) ---
-# --- UI: Instalační průvodce (bs4Dash) ---
-mod_setup_ui <- function(id){
-  ns <- NS(id)
-  tagList(
-    fluidRow(
-      column(
-        width = 6,
-        box(
-          title = tagList(icon("database"), span(" Krok 1 – Připojení k databázi")),
-          status = "info", solidHeader = TRUE, width = 12, closable = FALSE,
-          textInput(ns("host"),   "Host",   value = "127.0.0.1"),
-          numericInput(ns("port"), "Port",  value = 5432, min = 1, max = 65535),
-          textInput(ns("dbname"), "Databáze", value = "budgeting"),
-          textInput(ns("user"),   "Uživatel", value = "budget"),
-          passwordInput(ns("password"), "Heslo"),
-          actionButton(ns("test"),    "Otestovat připojení", icon = icon("plug"), class = "btn btn-primary"),
-          actionButton(ns("savecfg"), "Uložit konfiguraci",  icon = icon("save")),
-          actionButton(ns("loadcfg"), "Načíst z konfigurace",icon = icon("upload")),
-          uiOutput(ns("conn_status"))
+#' setup Module UI
+#'
+#' @param id Internal parameters for {shiny}.
+#' @return A UI definition.
+mod_setup_ui <- function(id) {
+  ns <- shiny::NS(id)
+  shiny::tagList(
+    bs4Dash::bs4Card(
+      title = "Database installation",
+      width = 12,
+      status = "primary",
+      collapsible = TRUE,
+      solidHeader = TRUE,
+      shiny::fluidRow(
+        shiny::column(6,
+          shiny::textInput(ns("host"), "Host", value = get_db_config()$host),
+          shiny::numericInput(ns("port"), "Port", value = get_db_config()$port, min = 1, max = 65535),
+          shiny::textInput(ns("dbname"), "Database", value = get_db_config()$dbname)
+        ),
+        shiny::column(6,
+          shiny::textInput(ns("user"), "User", value = get_db_config()$user),
+          shiny::passwordInput(ns("password"), "Password", value = get_db_config()$password),
+          shiny::selectInput(ns("sslmode"), "SSL mode", choices = c("disable", "allow", "prefer", "require", "verify-ca", "verify-full"), selected = get_db_config()$sslmode %||% "prefer")
         )
       ),
-      column(
-        width = 6,
-        box(
-          title = tagList(icon("cogs"), span(" Krok 2 – Inicializace")),
-          status = "warning", solidHeader = TRUE, width = 12, closable = FALSE,
-          uiOutput(ns("meta_status")),
-          actionButton(ns("init"),
-                       "Inicializovat metadata (vytvořit schéma app_meta)",
-                       icon = icon("cog"), class = "btn btn-warning"
-          )
-        )
-      ),
-      column(
-        width = 6,
-        box(
-          title = tagList(icon("user-shield"), span(" Krok 3 – Vytvoření admina")),
-          status = "success", solidHeader = TRUE, width = 12, closable = FALSE,
-          textInput(ns("admin_email"), "Admin e-mail"),
-          textInput(ns("admin_name"),  "Admin jméno"),
-          passwordInput(ns("admin_pw"), "Admin heslo"),
-          actionButton(ns("mkadmin"), "Vytvořit admina", icon = icon("user-shield"),
-                       class = "btn btn-success"),
-          uiOutput(ns("admin_status"))
-        )
+      shiny::fluidRow(
+        shiny::column(4, shiny::actionButton(ns("test"), "Test connection", icon = shiny::icon("plug"))),
+        shiny::column(4, shiny::actionButton(ns("install"), "Install schema", icon = shiny::icon("database"))),
+        shiny::column(4, shiny::actionButton(ns("store"), "Store configuration", icon = shiny::icon("save")))
       )
+    ),
+    bs4Dash::bs4Card(
+      title = "Create initial administrator",
+      width = 12,
+      status = "info",
+      collapsible = TRUE,
+      solidHeader = TRUE,
+      shiny::fluidRow(
+        shiny::column(4, shiny::textInput(ns("admin_user"), "Admin username", value = "admin")),
+        shiny::column(4, shiny::textInput(ns("admin_name"), "Admin full name")),
+        shiny::column(4, shiny::passwordInput(ns("admin_password"), "Admin password"))
+      ),
+      shiny::actionButton(ns("create_admin"), "Create administrator", icon = shiny::icon("user-shield"))
     )
   )
 }
 
-
-
-mod_setup_server <- function(id){
-  shiny::moduleServer(id, function(input, output, session){
+#' setup Module Server
+#'
+#' @param id module id
+#' @param conn Reactive expression containing shared DBI connection
+#' @param config Default configuration list
+#' @return The updated configuration reactive values
+mod_setup_server <- function(id, conn, config) {
+  shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
-    
-    observeEvent(input$loadcfg, {
-      cfg <- load_app_config()
-      updateTextInput(session, "host",   value = cfg$host)
-      updateNumericInput(session, "port", value = as.integer(cfg$port))
-      updateTextInput(session, "dbname", value = cfg$dbname)
-      updateTextInput(session, "user",   value = cfg$user)
-    })
-    
-    cfg_reactive <- reactive({
-      list(host=input$host, port=input$port, dbname=input$dbname,
-           user=input$user, password=input$password)
-    })
-    
-    observeEvent(input$test, {
-      cfg <- cfg_reactive()
-      res <- db_test_connection(cfg)
-      output$conn_status <- renderUI(
-        div(class = if (isTRUE(res$ok)) "text-success" else "text-danger",
-            if (isTRUE(res$ok)) "Připojení OK" else paste("Chyba:", res$msg))
+
+    current_cfg <- shiny::reactiveValues(
+      host = config$host,
+      port = config$port,
+      dbname = config$dbname,
+      user = config$user,
+      password = config$password,
+      sslmode = config$sslmode %||% "prefer"
+    )
+
+    gather_cfg <- function() {
+      list(
+        host = input$host,
+        port = input$port,
+        dbname = input$dbname,
+        user = input$user,
+        password = input$password,
+        sslmode = input$sslmode
       )
-      # check metadata existence (informational only)
-      try({
-        con <- DBI::dbConnect(RPostgres::Postgres(),
-                              host = cfg$host, port = as.integer(cfg$port),
-                              dbname = cfg$dbname, user = cfg$user, password = cfg$password)
-        on.exit(DBI::dbDisconnect(con), add = TRUE)
-        has <- DBI::dbGetQuery(con,
-                               "select exists(select 1 from information_schema.schemata where schema_name='app_meta') as ok")$ok
-        if (isTRUE(has)) {
-          output$meta_status <- renderUI(div(class = "text-warning",
-                                             "Metadata již existují – skript lze spustit znovu pro doplnění chybějících objektů."))
-        } else {
-          output$meta_status <- renderUI(div(class = "text-success",
-                                             "Metadata nenalezena – spustit inicializaci."))
+    }
+
+    observe_result <- function(expr, success_msg, error_msg, status = "success", icon = "check") {
+      tryCatch({
+        expr
+        shinyFeedback::showToast("success", success_msg)
+        add_notification(session, success_msg, status = status, icon = icon)
+      }, error = function(e) {
+        shinyFeedback::showToast("error", paste0(error_msg, ": ", e$message))
+        add_notification(session, paste0(error_msg, ": ", e$message), status = "danger", icon = "exclamation-triangle")
+      })
+    }
+
+    shiny::observeEvent(input$test, {
+      cfg <- gather_cfg()
+      observe_result({
+        temp_conn <- db_connect(cfg)
+        on.exit(db_disconnect(temp_conn))
+        DBI::dbGetQuery(temp_conn, "SELECT 1;")
+      }, success_msg = "Connection succeeded", error_msg = "Connection failed", status = "success", icon = "plug")
+    })
+
+    shiny::observeEvent(input$install, {
+      cfg <- gather_cfg()
+      observe_result({
+        temp_conn <- db_connect(cfg)
+        on.exit(db_disconnect(temp_conn))
+        db_install_schema(temp_conn)
+      }, success_msg = "Schema ready", error_msg = "Schema installation failed", status = "primary", icon = "database")
+    })
+
+    shiny::observeEvent(input$create_admin, {
+      cfg <- gather_cfg()
+      shiny::req(input$admin_user, input$admin_password)
+      observe_result({
+        temp_conn <- db_connect(cfg)
+        on.exit(db_disconnect(temp_conn))
+        db_ensure_admin(temp_conn, input$admin_user, input$admin_password, input$admin_name)
+      }, success_msg = "Administrator ready", error_msg = "Admin creation failed", status = "info", icon = "user-shield")
+    })
+
+    shiny::observeEvent(input$store, {
+      cfg <- gather_cfg()
+      current_cfg$host <- cfg$host
+      current_cfg$port <- cfg$port
+      current_cfg$dbname <- cfg$dbname
+      current_cfg$user <- cfg$user
+      current_cfg$password <- cfg$password
+      current_cfg$sslmode <- cfg$sslmode
+      shinyFeedback::showToast("info", "Configuration stored for session")
+      add_notification(session, "Configuration stored for session", status = "info", icon = "save")
+      # Optionally reconnect shared connection
+      tryCatch({
+        existing <- conn()
+        if (!is.null(existing) && DBI::dbIsValid(existing)) {
+          db_disconnect(existing)
         }
-      }, silent = TRUE)
-    })
-    
-    observeEvent(input$savecfg, {
-      cfg <- cfg_reactive()
-      save_app_config(cfg)
-      get_db_pool(force_reload = TRUE)
-      showNotification("Konfigurace uložena.")
-    })
-    
-    observeEvent(input$init, {
-      cfg <- cfg_reactive()
-      con <- try(DBI::dbConnect(RPostgres::Postgres(),
-                                host = cfg$host, port = as.integer(cfg$port),
-                                dbname = cfg$dbname, user = cfg$user, password = cfg$password), silent = TRUE)
-      if (inherits(con, "try-error")) { showNotification("Nelze se připojit k DB", type = "error"); return() }
-      on.exit(DBI::dbDisconnect(con), add = TRUE)
-
-      has <- DBI::dbGetQuery(con,
-                             "select exists(select 1 from information_schema.schemata where schema_name='app_meta') as ok")$ok
-      if (isTRUE(has)) {
-        showNotification("Metadata již existují – provádím aktualizaci.")
-      } else {
-        showNotification("Metadata nenalezena – provádím inicializaci.")
-      }
-
-      # načti externí SQL, jinak fallback (viz /sql/init_auth.sql)
-      ddl <- NULL; path <- "sql/init_auth.sql"
-      if (file.exists(path)) ddl <- readChar(path, file.info(path)$size)
-      if (is.null(ddl)) {
-        ddl <- paste(readLines(system.file(package = "base")), collapse = "\n") # dummy, přepíšeme hned…
-        ddl <- paste0(
-          "create schema if not exists app_meta;
-create extension if not exists citext;
-
-create table if not exists app_meta.user_account(
-  user_id bigserial primary key,
-  email citext not null unique,
-  display_name text not null,
-  password_hash text not null,
-  is_active boolean not null default true,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_login_at timestamptz,
-  mfa_secret text
-);
-
-create table if not exists app_meta.role(
-  role_id serial primary key,
-  code text unique not null,
-  title text not null
-);
-
-create table if not exists app_meta.user_role(
-  user_id bigint references app_meta.user_account(user_id) on delete cascade,
-  role_id int references app_meta.role(role_id) on delete cascade,
-  primary key(user_id, role_id)
-);
-
-create table if not exists app_meta.session_log(
-  session_id text primary key,
-  user_id bigint references app_meta.user_account(user_id) on delete set null,
-  login_at timestamptz not null default now(),
-  logout_at timestamptz,
-  ip inet,
-  user_agent text
-);
-
-create or replace function app_meta.tg_updated_at() returns trigger
-language plpgsql as $$
-begin
-  new.updated_at = now();
-  return new;
-end $$;
-
-drop trigger if exists user_account_updated_at on app_meta.user_account;
-create trigger user_account_updated_at
-before update on app_meta.user_account
-for each row execute function app_meta.tg_updated_at();
-
-insert into app_meta.role(code,title) values
-  ('admin','Administrátor'),('user','Uživatel')
-on conflict do nothing;
-
-create or replace view app_meta.v_user_roles as
-select u.user_id, u.email, u.display_name, u.is_active,
-       string_agg(r.code, ',') as roles
-from app_meta.user_account u
-left join app_meta.user_role ur on ur.user_id=u.user_id
-left join app_meta.role r on r.role_id=ur.role_id
-group by u.user_id, u.email, u.display_name, u.is_active;
-")
-      }
-      
-      run_ddl(con, ddl)
-      output$meta_status <- renderUI(div(class = "text-success",
-                                         "Metadata vytvořena / aktualizována."))
-      showNotification("Metadata vytvořena / aktualizována.")
-    })
-    
-    observeEvent(input$mkadmin, {
-      req(nzchar(input$admin_email), nzchar(input$admin_name), nzchar(input$admin_pw))
-      shinyjs::disable("mkadmin")
-      on.exit(shinyjs::enable("mkadmin"), add = TRUE)
-      
-      cfg <- list(host = input$host, port = input$port, dbname = input$dbname,
-                  user = input$user, password = input$password)
-      
-      con <- try(DBI::dbConnect(RPostgres::Postgres(),
-                                host = cfg$host, port = as.integer(cfg$port),
-                                dbname = cfg$dbname, user = cfg$user, password = cfg$password),
-                 silent = TRUE)
-      if (inherits(con, "try-error")) {
-        output$admin_status <- renderUI(div(class = "text-danger", "Nelze se připojit k DB."))
-        return()
-      }
-      on.exit(DBI::dbDisconnect(con), add = TRUE)
-      
-      has <- DBI::dbGetQuery(con,
-                             "select exists(select 1 from information_schema.schemata where schema_name='app_meta') ok")$ok[[1]]
-      if (!isTRUE(has)) {
-        output$admin_status <- renderUI(div(class = "text-danger", "Metadata nejsou vytvořena."))
-        return()
-      }
-
-      has_admin <- DBI::dbGetQuery(con,
-        "select exists(select 1 from app_meta.user_role ur join app_meta.role r on r.role_id=ur.role_id where r.code='admin') ok"
-      )$ok[[1]]
-      if (isTRUE(has_admin)) {
-        output$admin_status <- renderUI(div(class = "text-danger",
-                                           "Admin již existuje. Další uživatele musí vytvořit stávající admin."))
-        shinyjs::disable("mkadmin")
-        return()
-      }
-
-      email <- tolower(trimws(input$admin_email))
-      name  <- input$admin_name
-      
-      DBI::dbWithTransaction(con, {
-        # Existuje už uživatel s tímto e-mailem?
-        existing <- DBI::dbGetQuery(con,
-                                    "select user_id from app_meta.user_account where email=$1",
-                                    params = list(email))
-        
-        if (nrow(existing) > 0) {
-          uid <- existing$user_id[1]
-          # aktivuj účet a přiřaď role admin+user (bez změny hesla)
-          DBI::dbExecute(con, "update app_meta.user_account set is_active=true where user_id=$1",
-                         params = list(uid))
-          DBI::dbExecute(con,
-                         "insert into app_meta.user_role(user_id, role_id)
-           select $1, role_id from app_meta.role where code in ('admin','user')
-         on conflict do nothing",
-                         params = list(uid))
-          output$admin_status <- renderUI(div(
-            class="text-warning",
-            sprintf("Uživatel %s už existuje (user_id=%s). Přiřadil jsem mu roli admin a ponechal původní heslo.",
-                    email, uid)
-          ))
-          shinyjs::disable("mkadmin")
-        } else {
-          # nový admin (nastaví se zadané heslo)
-          ph  <- sodium::password_store(input$admin_pw)
-          uid <- DBI::dbGetQuery(con,
-                                 "insert into app_meta.user_account(email, display_name, password_hash, is_active)
-         values($1,$2,$3,true) returning user_id",
-                                 params = list(email, name, ph))$user_id[[1]]
-          
-          DBI::dbExecute(con,
-                         "insert into app_meta.user_role(user_id, role_id)
-           select $1, role_id from app_meta.role where code in ('admin','user')
-         on conflict do nothing",
-                         params = list(uid))
-          
-          output$admin_status <- renderUI(div(
-            class="text-success",
-            sprintf("Admin vytvořen (user_id=%s).", uid)
-          ))
-          showNotification("Admin účet vytvořen.")
-          shinyjs::disable("mkadmin")
-        }
+        conn(db_connect(cfg))
+        shinyFeedback::showToast("success", "Database connection refreshed")
+        add_notification(session, "Database connection refreshed", status = "success", icon = "plug")
+      }, error = function(e) {
+        shinyFeedback::showToast("error", paste("Unable to reconnect:", e$message))
+        add_notification(session, paste("Unable to reconnect:", e$message), status = "danger", icon = "exclamation-triangle")
       })
     })
-    
+
+    shiny::reactive(current_cfg)
   })
 }

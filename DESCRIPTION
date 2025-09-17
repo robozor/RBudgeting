@@ -1,0 +1,39 @@
+Package: RBudgeting
+Title: RBudgeting Shiny Application
+Version: 0.0.1
+Authors@R: c(
+    person(given = "RBudgeting",
+           family = "Developers",
+           role = c("aut", "cre"),
+           email = "dev@example.com")
+    )
+Description: Skeleton of a RBudgeting Shiny application built with
+    golem, bs4Dash, shinymanager, and PostgreSQL integration.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1
+Depends:
+    R (>= 4.1)
+Imports:
+    bs4Dash,
+    config,
+    DBI,
+    dplyr,
+    golem,
+    magrittr,
+    RPostgres,
+    DT,
+    shiny,
+    shinyFeedback,
+    shinydashboard,
+    shinyjs,
+    shinymanager,
+    shinyWidgets
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Config/golem/name: RBudgeting
+Config/golem/version: 0.0.1
+Config/golem/app_prod: FALSE

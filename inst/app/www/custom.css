@@ -1,0 +1,12 @@
+body.light-mode {
+  background-color: #f8f9fa;
+}
+
+body.dark-mode {
+  background-color: #1f2d3d;
+  color: #f8f9fa;
+}
+
+.navbar .custom-theme-toggle {
+  margin-right: 1rem;
+}
