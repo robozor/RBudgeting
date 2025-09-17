@@ -244,23 +244,56 @@ format_scalar_for_log <- function(value, fallback = "<unavailable>") {
 #' package releases. This wrapper tries the available function without
 #' triggering errors on older or newer versions.
 use_bs4dash_dependencies <- function() {
-  exported <- getNamespaceExports("bs4Dash")
-
-  if ("useBs4Dash" %in% exported) {
-    return(bs4Dash::useBs4Dash())
-  }
-  if ("use_bs4dash" %in% exported) {
-    return(bs4Dash::use_bs4dash())
+  if (!requireNamespace("bs4Dash", quietly = TRUE)) {
+    log_debug("use_bs4dash_dependencies", "bs4Dash namespace unavailable; returning empty tagList.")
+    return(shiny::tagList())
   }
 
   ns <- asNamespace("bs4Dash")
-  if (exists("useBs4Dash", envir = ns, inherits = FALSE)) {
-    return(get("useBs4Dash", envir = ns)())
-  }
-  if (exists("use_bs4dash", envir = ns, inherits = FALSE)) {
-    return(get("use_bs4dash", envir = ns)())
+  helpers <- c("useBs4Dash", "use_bs4dash")
+
+  for (helper_name in helpers) {
+    if (!exists(helper_name, envir = ns, inherits = FALSE)) {
+      next
+    }
+
+    helper <- get(helper_name, envir = ns)
+    result <- tryCatch(
+      if (is.function(helper)) helper() else helper,
+      error = function(e) {
+        log_debug(
+          "use_bs4dash_dependencies",
+          "Failed to invoke helper '",
+          helper_name,
+          "': ",
+          conditionMessage(e),
+          "."
+        )
+        NULL
+      }
+    )
+
+    if (is.null(result)) {
+      next
+    }
+
+    if (is.function(result)) {
+      log_debug(
+        "use_bs4dash_dependencies",
+        "Helper '",
+        helper_name,
+        "' returned a function; ignoring unexpected value."
+      )
+      next
+    }
+
+    return(result)
   }
 
+  log_debug(
+    "use_bs4dash_dependencies",
+    "No suitable helper found; returning empty tagList."
+  )
   shiny::tagList()
 }
 
