@@ -1,0 +1,9 @@
+# Runtime configuration for RBudgeting database connection.
+# This file is updated by the setup module when credentials are stored.
+db:
+  host: localhost
+  port: 5432
+  dbname: rbudgeting
+  user: rbudget_app
+  password: change_me
+  sslmode: prefer
