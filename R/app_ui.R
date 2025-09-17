@@ -114,9 +114,6 @@ app_ui <- function(request) {
       shiny::tags$h2("RBudgeting"),
       shiny::tags$p("Secure authentication provided by shinymanager.")
     ),
-    theme = shinymanager::create_custom_theme(
-      color = "#1f2d3d",
-      hover = "#3c8dbc"
-    )
+    theme = NULL
   )
 }
