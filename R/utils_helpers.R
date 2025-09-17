@@ -33,6 +33,32 @@ get_app_settings <- function() {
   list(language = language, default_theme = default_theme)
 }
 
+#' Use bs4Dash dependencies across versions
+#'
+#' The exported helper for attaching bs4Dash assets changed between
+#' package releases. This wrapper tries the available function without
+#' triggering errors on older or newer versions.
+use_bs4dash_dependencies <- function() {
+  exported <- getNamespaceExports("bs4Dash")
+
+  if ("useBs4Dash" %in% exported) {
+    return(bs4Dash::useBs4Dash())
+  }
+  if ("use_bs4dash" %in% exported) {
+    return(bs4Dash::use_bs4dash())
+  }
+
+  ns <- asNamespace("bs4Dash")
+  if (exists("useBs4Dash", envir = ns, inherits = FALSE)) {
+    return(get("useBs4Dash", envir = ns)())
+  }
+  if (exists("use_bs4dash", envir = ns, inherits = FALSE)) {
+    return(get("use_bs4dash", envir = ns)())
+  }
+
+  shiny::tagList()
+}
+
 #' Add a notification to the navbar menu
 #' 
 #' @param session Shiny session object
