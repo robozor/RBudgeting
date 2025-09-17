@@ -109,7 +109,7 @@ app_ui <- function(request) {
   setup_public <- shiny::div(
     id = "public-setup",
     class = "setup-public-container",
-    bs4Dash::useBs4Dash(),
+    use_bs4dash_dependencies(),
     setup_header,
     mod_setup_ui("setup")
   )
