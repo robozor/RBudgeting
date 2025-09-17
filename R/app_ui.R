@@ -3,11 +3,32 @@
 #' Defines the UI layout using bs4Dash components secured by shinymanager.
 #' @import shiny bs4Dash shinyWidgets shinymanager
 app_ui <- function(request) {
-  ui <- bs4Dash::bs4DashPage(
+  sidebar <- bs4Dash::bs4DashSidebar(
+    skin = "light",
+    title = "Navigation",
+    collapsed = FALSE,
+    bs4Dash::bs4SidebarMenu(
+      bs4Dash::bs4SidebarMenuItem(
+        text = "Dashboard",
+        tabName = "dashboard",
+        icon = shiny::icon("tachometer-alt")
+      ),
+      bs4Dash::bs4SidebarMenuItem(
+        text = "Users",
+        tabName = "users",
+        icon = shiny::icon("users")
+      ),
+      bs4Dash::bs4SidebarMenuItem(
+        text = "Setup",
+        tabName = "setup",
+        icon = shiny::icon("tools")
+      )
+    )
+  )
+
+  page_args <- list(
     title = "RBudgeting",
     freshTheme = NULL,
-    sidebar_collapsed = FALSE,
-    scrollToTop = TRUE,
     preloader = list(html = NULL, color = "#3c8dbc"),
     navbar = bs4Dash::bs4DashNavbar(
       title = shiny::tags$span("RBudgeting"),
@@ -23,27 +44,7 @@ app_ui <- function(request) {
       ),
       controlbarIcon = shiny::icon("sliders-h")
     ),
-    sidebar = bs4Dash::bs4DashSidebar(
-      skin = "light",
-      title = "Navigation",
-      bs4Dash::bs4SidebarMenu(
-        bs4Dash::bs4SidebarMenuItem(
-          text = "Dashboard",
-          tabName = "dashboard",
-          icon = shiny::icon("tachometer-alt")
-        ),
-        bs4Dash::bs4SidebarMenuItem(
-          text = "Users",
-          tabName = "users",
-          icon = shiny::icon("users")
-        ),
-        bs4Dash::bs4SidebarMenuItem(
-          text = "Setup",
-          tabName = "setup",
-          icon = shiny::icon("tools")
-        )
-      )
-    ),
+    sidebar = sidebar,
     controlbar = bs4Dash::bs4DashControlbar(
       id = "controlbar",
       skin = "dark",
@@ -79,6 +80,18 @@ app_ui <- function(request) {
       )
     )
   )
+
+  available_args <- names(formals(bs4Dash::bs4DashPage))
+
+  if (!"navbar" %in% available_args && "header" %in% available_args && "navbar" %in% names(page_args)) {
+    page_args$header <- page_args$navbar
+  }
+  if (!"controlbar" %in% available_args && "rightsidebar" %in% available_args && "controlbar" %in% names(page_args)) {
+    page_args$rightsidebar <- page_args$controlbar
+  }
+
+  page_args <- page_args[names(page_args) %in% available_args]
+  ui <- do.call(bs4Dash::bs4DashPage, page_args)
 
   shinymanager::secure_app(
     ui = add_app_dependencies(ui),
