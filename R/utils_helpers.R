@@ -209,6 +209,35 @@ sanitize_scalar_integer <- function(value, default = NA_integer_, min = NULL, ma
   candidate
 }
 
+#' Safely format a scalar value for logging
+#'
+#' Converts arbitrary inputs into a character representation suitable for
+#' concatenation in log messages while avoiding errors when functions or other
+#' unsupported objects are supplied.
+#'
+#' @param value Value to format.
+#' @param fallback String to use when the value cannot be represented.
+#' @return A single character string.
+format_scalar_for_log <- function(value, fallback = "<unavailable>") {
+  if (is.null(value)) {
+    return("NULL")
+  }
+  if (is.function(value)) {
+    return("<function>")
+  }
+
+  coerced <- tryCatch(
+    as.character(value),
+    error = function(e) character()
+  )
+
+  if (length(coerced) == 0 || is.na(coerced[1])) {
+    return(fallback)
+  }
+
+  coerced[[1]]
+}
+
 #' Use bs4Dash dependencies across versions
 #'
 #' The exported helper for attaching bs4Dash assets changed between
