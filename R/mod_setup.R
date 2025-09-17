@@ -4,6 +4,8 @@
 #' @return A UI definition.
 mod_setup_ui <- function(id) {
   ns <- shiny::NS(id)
+  cfg <- get_db_config()
+  log_structure("mod_setup_ui.config_defaults", cfg)
   shiny::tagList(
     bs4Dash::bs4Card(
       title = "Database installation",
@@ -13,14 +15,14 @@ mod_setup_ui <- function(id) {
       solidHeader = TRUE,
       shiny::fluidRow(
         shiny::column(6,
-          shiny::textInput(ns("host"), "Host", value = get_db_config()$host),
-          shiny::numericInput(ns("port"), "Port", value = get_db_config()$port, min = 1, max = 65535),
-          shiny::textInput(ns("dbname"), "Database", value = get_db_config()$dbname)
+          shiny::textInput(ns("host"), "Host", value = cfg$host),
+          shiny::numericInput(ns("port"), "Port", value = cfg$port, min = 1, max = 65535),
+          shiny::textInput(ns("dbname"), "Database", value = cfg$dbname)
         ),
         shiny::column(6,
-          shiny::textInput(ns("user"), "User", value = get_db_config()$user),
-          shiny::passwordInput(ns("password"), "Password", value = get_db_config()$password),
-          shiny::selectInput(ns("sslmode"), "SSL mode", choices = c("disable", "allow", "prefer", "require", "verify-ca", "verify-full"), selected = get_db_config()$sslmode %||% "prefer")
+          shiny::textInput(ns("user"), "User", value = cfg$user),
+          shiny::passwordInput(ns("password"), "Password", value = cfg$password),
+          shiny::selectInput(ns("sslmode"), "SSL mode", choices = c("disable", "allow", "prefer", "require", "verify-ca", "verify-full"), selected = cfg$sslmode %||% "prefer")
         )
       ),
       shiny::fluidRow(

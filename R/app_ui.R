@@ -4,6 +4,7 @@
 #' @import shiny bs4Dash shinyWidgets shinymanager
 app_ui <- function(request) {
   app_settings <- get_app_settings()
+  log_structure("app_ui.settings", app_settings)
   message(
     sprintf(
       "[app_ui] Loaded settings -> language: '%s', default_theme: '%s'",
@@ -96,6 +97,13 @@ app_ui <- function(request) {
   )
 
   available_args <- names(formals(bs4Dash::bs4DashPage))
+  message(
+    sprintf(
+      "[app_ui] Detected %d available bs4Dash::bs4DashPage arguments.",
+      length(available_args)
+    )
+  )
+  log_structure("app_ui.available_args", available_args)
 
   if (!"navbar" %in% available_args && "header" %in% available_args && "navbar" %in% names(page_args)) {
     page_args$header <- page_args$navbar
@@ -105,7 +113,29 @@ app_ui <- function(request) {
   }
 
   page_args <- page_args[names(page_args) %in% available_args]
-  secure_ui <- do.call(bs4Dash::bs4DashPage, page_args)
+  log_structure("app_ui.page_args", page_args)
+  secure_ui <- tryCatch(
+    {
+      ui_obj <- do.call(bs4Dash::bs4DashPage, page_args)
+      message(
+        sprintf(
+          "[app_ui] secure_ui constructed. Class: %s",
+          paste(class(ui_obj), collapse = ", ")
+        )
+      )
+      ui_obj
+    },
+    error = function(e) {
+      message(
+        sprintf(
+          "[app_ui] Error constructing secure_ui: %s",
+          conditionMessage(e)
+        )
+      )
+      log_structure("app_ui.page_args_on_error", page_args)
+      stop(e)
+    }
+  )
 
   setup_header <- shiny::div(
     class = "setup-header",
@@ -120,6 +150,12 @@ app_ui <- function(request) {
     setup_header,
     mod_setup_ui("setup")
   )
+  message(
+    sprintf(
+      "[app_ui] setup_public constructed. Class: %s",
+      paste(class(setup_public), collapse = ", ")
+    )
+  )
 
   visibility_styles <- shiny::tags$head(
     shiny::tags$style(
@@ -132,7 +168,7 @@ app_ui <- function(request) {
     )
   )
 
-  add_app_dependencies(
+  final_ui <- add_app_dependencies(
     shiny::tagList(
       shinyjs::useShinyjs(),
       shinyFeedback::useShinyFeedback(),
@@ -154,4 +190,11 @@ app_ui <- function(request) {
       )
     )
   )
+  message(
+    sprintf(
+      "[app_ui] Final UI assembled. Class: %s",
+      paste(class(final_ui), collapse = ", ")
+    )
+  )
+  final_ui
 }
