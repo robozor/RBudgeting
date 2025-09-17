@@ -96,8 +96,8 @@ app_server <- function(input, output, session) {
 
   mod_setup_server("setup", conn = conn, config = db_cfg)
 
-  shiny::observeEvent(auth$result(), {
-    authed <- isTRUE(auth$result())
+  shiny::observeEvent(auth$result, {
+    authed <- isTRUE(auth$result)
 
     if (authed) {
       shinyjs::addClass(id = "public-setup", class = "public-hidden")
@@ -113,8 +113,8 @@ app_server <- function(input, output, session) {
     }
   }, ignoreNULL = FALSE)
 
-  shiny::observeEvent(auth$result(), {
-    req(isTRUE(auth$result()))
+  shiny::observeEvent(auth$result, {
+    req(isTRUE(auth$result))
     mod_user_management_server("user_management", conn = conn)
   }, once = TRUE)
 
