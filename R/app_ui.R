@@ -4,6 +4,13 @@
 #' @import shiny bs4Dash shinyWidgets shinymanager
 app_ui <- function(request) {
   app_settings <- get_app_settings()
+  message(
+    sprintf(
+      "[app_ui] Loaded settings -> language: '%s', default_theme: '%s'",
+      app_settings$language,
+      app_settings$default_theme
+    )
+  )
 
   sidebar <- bs4Dash::bs4DashSidebar(
     skin = "light",

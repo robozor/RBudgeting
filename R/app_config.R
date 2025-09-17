@@ -3,11 +3,13 @@
 #' @return A list of configuration values coming from `golem-config.yml`.
 get_golem_config <- function(config = c("default", "production")) {
   config <- match.arg(config)
-  config::get(
+  resolved <- config::get(
     config = config,
     file = app_sys("golem-config.yml"),
     use_parent = FALSE
   )
+  log_structure("get_golem_config.result", resolved)
+  resolved
 }
 
 #' Read database configuration
@@ -18,12 +20,16 @@ get_db_config <- function() {
   db <- cfg$db
 
   if (is.null(db) || !is.list(db)) {
+    log_debug("get_db_config", "Database configuration missing or invalid, using defaults.")
     db <- list()
   }
+
+  log_structure("get_db_config.raw", db)
 
   host <- sanitize_scalar_character(db$host, default = "localhost")
   port <- sanitize_scalar_integer(db$port, default = 5432L, min = 1L, max = 65535L)
   if (is.na(port)) {
+    log_debug("get_db_config", "Port sanitization returned NA; fallback to 5432.")
     port <- 5432L
   }
 
@@ -37,7 +43,7 @@ get_db_config <- function() {
     sslmode <- "prefer"
   }
 
-  list(
+  sanitized <- list(
     host = host,
     port = port,
     dbname = dbname,
@@ -45,4 +51,6 @@ get_db_config <- function() {
     password = password,
     sslmode = sslmode
   )
+  log_structure("get_db_config.sanitized", sanitized)
+  sanitized
 }
