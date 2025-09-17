@@ -13,6 +13,10 @@ credential_checker <- function(conn_reactive) {
       return(default)
     }
 
+    if (is.function(value)) {
+      return(default)
+    }
+
     coerced <- tryCatch(as.character(value), error = function(e) character())
     if (length(coerced) == 0 || is.na(coerced[1]) || !nzchar(coerced[1])) {
       default
