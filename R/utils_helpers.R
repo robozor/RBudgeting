@@ -20,17 +20,63 @@ get_app_settings <- function() {
     settings <- list()
   }
 
-  language <- settings$language
-  if (!is.character(language) || length(language) != 1 || is.na(language)) {
-    language <- "en"
-  }
+  language <- sanitize_scalar_character(settings$language, default = "en")
 
-  default_theme <- settings$default_theme
-  if (!is.character(default_theme) || length(default_theme) != 1 || is.na(default_theme)) {
+  default_theme <- sanitize_scalar_character(settings$default_theme, default = "light")
+  allowed_themes <- c("light", "dark")
+  if (!default_theme %in% allowed_themes) {
     default_theme <- "light"
   }
 
   list(language = language, default_theme = default_theme)
+}
+
+sanitize_scalar_character <- function(value, default = "", allow_empty = FALSE) {
+  if (is.null(value) || is.function(value)) {
+    return(default)
+  }
+
+  coerced <- tryCatch(as.character(value), error = function(e) character())
+  if (length(coerced) == 0) {
+    return(default)
+  }
+
+  candidate <- coerced[[1]]
+  if (is.na(candidate)) {
+    return(default)
+  }
+
+  candidate <- trimws(candidate)
+  if (!allow_empty && !nzchar(candidate)) {
+    return(default)
+  }
+
+  candidate
+}
+
+sanitize_scalar_integer <- function(value, default = NA_integer_, min = NULL, max = NULL) {
+  if (is.null(value) || is.function(value)) {
+    return(default)
+  }
+
+  coerced <- suppressWarnings(as.integer(value))
+  if (length(coerced) == 0) {
+    return(default)
+  }
+
+  candidate <- coerced[[1]]
+  if (is.na(candidate)) {
+    return(default)
+  }
+
+  if (!is.null(min) && candidate < min) {
+    return(default)
+  }
+  if (!is.null(max) && candidate > max) {
+    return(default)
+  }
+
+  candidate
 }
 
 #' Use bs4Dash dependencies across versions

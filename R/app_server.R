@@ -4,6 +4,24 @@
 app_server <- function(input, output, session) {
   db_cfg <- get_db_config()
   app_settings <- get_app_settings()
+  message(
+    "[app_server] Database config: host=",
+    db_cfg$host,
+    ", port=",
+    db_cfg$port,
+    ", dbname=",
+    db_cfg$dbname,
+    ", user=",
+    db_cfg$user,
+    ", sslmode=",
+    db_cfg$sslmode
+  )
+  message(
+    "[app_server] App settings: language=",
+    app_settings$language,
+    ", default_theme=",
+    app_settings$default_theme
+  )
   conn <- shiny::reactiveVal(NULL)
 
   shiny::observeEvent(TRUE, {

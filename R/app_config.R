@@ -15,5 +15,34 @@ get_golem_config <- function(config = c("default", "production")) {
 #' @return A list containing database connection parameters.
 get_db_config <- function() {
   cfg <- get_golem_config()
-  cfg$db
+  db <- cfg$db
+
+  if (is.null(db) || !is.list(db)) {
+    db <- list()
+  }
+
+  host <- sanitize_scalar_character(db$host, default = "localhost")
+  port <- sanitize_scalar_integer(db$port, default = 5432L, min = 1L, max = 65535L)
+  if (is.na(port)) {
+    port <- 5432L
+  }
+
+  dbname <- sanitize_scalar_character(db$dbname, default = "rbudgeting")
+  user <- sanitize_scalar_character(db$user, default = "")
+  password <- sanitize_scalar_character(db$password, default = "", allow_empty = TRUE)
+
+  sslmode <- sanitize_scalar_character(db$sslmode, default = "prefer")
+  allowed_ssl <- c("disable", "allow", "prefer", "require", "verify-ca", "verify-full")
+  if (!sslmode %in% allowed_ssl) {
+    sslmode <- "prefer"
+  }
+
+  list(
+    host = host,
+    port = port,
+    dbname = dbname,
+    user = user,
+    password = password,
+    sslmode = sslmode
+  )
 }
