@@ -34,13 +34,26 @@ app_ui <- function(request) {
       title = shiny::tags$span("RBudgeting"),
       skin = "dark",
       rightUi = shiny::tagList(
-        bs4Dash::dropdownMenuOutput("notifications"),
-        shinyWidgets::materialSwitch(
-          inputId = "theme_toggle",
-          label = "Dark mode",
-          status = "primary"
+        shiny::tags$li(
+          class = "nav-item dropdown",
+          bs4Dash::dropdownMenuOutput("notifications")
         ),
-        shiny::actionButton("logout", label = "Logout", icon = shiny::icon("sign-out-alt"))
+        shiny::tags$li(
+          class = "nav-item",
+          shinyWidgets::materialSwitch(
+            inputId = "theme_toggle",
+            label = "Dark mode",
+            status = "primary"
+          )
+        ),
+        shiny::tags$li(
+          class = "nav-item",
+          shiny::actionButton(
+            "logout",
+            label = "Logout",
+            icon = shiny::icon("sign-out-alt")
+          )
+        )
       ),
       controlbarIcon = shiny::icon("sliders-h")
     ),
