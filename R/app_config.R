@@ -4,9 +4,9 @@
 get_golem_config <- function(config = c("default", "production")) {
   config <- match.arg(config)
   config::get(
-    value = config,
-    config = "golem-config.yml",
-    package = "RBudgeting"
+    config = config,
+    file = app_sys("golem-config.yml"),
+    use_parent = FALSE
   )
 }
 
