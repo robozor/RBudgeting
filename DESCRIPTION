@@ -31,6 +31,7 @@ Imports:
     shinyjs,
     shinymanager,
     shinyWidgets,
+    yaml,
     utils
 Suggests:
     testthat (>= 3.0.0)

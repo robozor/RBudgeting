@@ -26,9 +26,14 @@ mod_setup_ui <- function(id) {
         )
       ),
       shiny::fluidRow(
-        shiny::column(4, shiny::actionButton(ns("test"), "Test connection", icon = shiny::icon("plug"))),
-        shiny::column(4, shiny::actionButton(ns("install"), "Install schema", icon = shiny::icon("database"))),
-        shiny::column(4, shiny::actionButton(ns("store"), "Store configuration", icon = shiny::icon("save")))
+        shiny::column(3, shiny::actionButton(ns("test"), "Test connection", icon = shiny::icon("plug"))),
+        shiny::column(3, shiny::actionButton(ns("install"), "Install schema", icon = shiny::icon("database"))),
+        shiny::column(3, shiny::actionButton(ns("store"), "Store configuration", icon = shiny::icon("save"))),
+        shiny::column(3, shiny::actionButton(ns("load"), "Load configuration", icon = shiny::icon("folder-open")))
+      ),
+      shiny::div(
+        class = "mt-3",
+        shiny::actionButton(ns("show_login"), "Go to login", icon = shiny::icon("sign-in-alt"), class = "btn btn-success")
       )
     ),
     bs4Dash::bs4Card(
@@ -77,6 +82,34 @@ mod_setup_server <- function(id, conn, config) {
       )
     }
 
+    update_current_cfg <- function(cfg, update_inputs = FALSE) {
+      current_cfg$host <- cfg$host
+      current_cfg$port <- cfg$port
+      current_cfg$dbname <- cfg$dbname
+      current_cfg$user <- cfg$user
+      current_cfg$password <- cfg$password
+      current_cfg$sslmode <- cfg$sslmode
+
+      if (isTRUE(update_inputs)) {
+        shiny::updateTextInput(session, "host", value = cfg$host)
+        shiny::updateNumericInput(session, "port", value = cfg$port)
+        shiny::updateTextInput(session, "dbname", value = cfg$dbname)
+        shiny::updateTextInput(session, "user", value = cfg$user)
+        shiny::updateTextInput(session, "password", value = cfg$password)
+        shiny::updateSelectInput(session, "sslmode", selected = cfg$sslmode)
+      }
+    }
+
+    reconnect <- function(cfg) {
+      existing <- conn()
+      if (!is.null(existing) && DBI::dbIsValid(existing)) {
+        db_disconnect(existing)
+      }
+      conn(db_connect(cfg))
+      shinyFeedback::showToast("success", "Database connection refreshed")
+      add_notification(session, "Database connection refreshed", status = "success", icon = "plug")
+    }
+
     observe_result <- function(expr, success_msg, error_msg, status = "success", icon = "check") {
       tryCatch({
         expr
@@ -119,28 +152,28 @@ mod_setup_server <- function(id, conn, config) {
 
     shiny::observeEvent(input$store, {
       cfg <- gather_cfg()
-      current_cfg$host <- cfg$host
-      current_cfg$port <- cfg$port
-      current_cfg$dbname <- cfg$dbname
-      current_cfg$user <- cfg$user
-      current_cfg$password <- cfg$password
-      current_cfg$sslmode <- cfg$sslmode
-      shinyFeedback::showToast("info", "Configuration stored for session")
-      add_notification(session, "Configuration stored for session", status = "info", icon = "save")
-      # Optionally reconnect shared connection
-      tryCatch({
-        existing <- conn()
-        if (!is.null(existing) && DBI::dbIsValid(existing)) {
-          db_disconnect(existing)
+      observe_result({
+        save_db_config(cfg)
+        sanitized <- sanitize_db_configuration(cfg)
+        update_current_cfg(sanitized)
+        reconnect(sanitized)
+      }, success_msg = "Configuration stored", error_msg = "Failed to store configuration", status = "info", icon = "save")
+    })
+
+    shiny::observeEvent(input$load, {
+      observe_result({
+        loaded <- load_persisted_db_config()
+        if (is.null(loaded)) {
+          stop("No configuration file available")
         }
-        conn(db_connect(cfg))
-        shinyFeedback::showToast("success", "Database connection refreshed")
-        add_notification(session, "Database connection refreshed", status = "success", icon = "plug")
-      }, error = function(e) {
-        message <- conditionMessage(e)
-        shinyFeedback::showToast("error", paste("Unable to reconnect:", message))
-        add_notification(session, paste("Unable to reconnect:", message), status = "danger", icon = "exclamation-triangle")
-      })
+        sanitized <- sanitize_db_configuration(loaded)
+        update_current_cfg(sanitized, update_inputs = TRUE)
+        reconnect(sanitized)
+      }, success_msg = "Configuration loaded", error_msg = "Unable to load configuration", status = "info", icon = "folder-open")
+    })
+
+    shiny::observeEvent(input$show_login, {
+      shinyjs::removeClass(selector = "#secure-content", class = "secure-hidden")
     })
 
     shiny::reactive(current_cfg)
