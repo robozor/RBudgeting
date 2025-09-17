@@ -10,12 +10,22 @@ credential_checker <- function(conn_reactive) {
 
   sanitize_field <- function(value, default = "") {
     if (missing(value) || is.null(value)) {
-      log_debug("credential_checker.sanitize_field", "Missing or NULL value; using default '", default, "'.")
+      log_debug(
+        "credential_checker.sanitize_field",
+        "Missing or NULL value; using default '",
+        default,
+        "'."
+      )
       return(default)
     }
 
     if (is.function(value)) {
-      log_debug("credential_checker.sanitize_field", "Function supplied; using default '", default, "'.")
+      log_debug(
+        "credential_checker.sanitize_field",
+        "Function supplied; using default '",
+        default,
+        "'."
+      )
       return(default)
     }
 
@@ -33,13 +43,36 @@ credential_checker <- function(conn_reactive) {
         character()
       }
     )
-    if (length(coerced) == 0 || is.na(coerced[1]) || !nzchar(coerced[1])) {
-      log_debug("credential_checker.sanitize_field", "Invalid coerced result; using default '", default, "'.")
-      default
-    } else {
-      log_debug("credential_checker.sanitize_field", "Returning sanitized value '", coerced[1], "'.")
-      coerced[1]
+
+    if (length(coerced) == 0) {
+      log_debug(
+        "credential_checker.sanitize_field",
+        "Coercion produced empty result; using default '",
+        default,
+        "'."
+      )
+      return(default)
     }
+
+    candidate <- coerced[1]
+
+    if (is.na(candidate) || (!nzchar(candidate) && nzchar(default))) {
+      log_debug(
+        "credential_checker.sanitize_field",
+        "Coercion result unusable; using default '",
+        default,
+        "'."
+      )
+      return(default)
+    }
+
+    log_debug(
+      "credential_checker.sanitize_field",
+      "Returning sanitized value '",
+      candidate,
+      "'."
+    )
+    candidate
   }
 
   failure_response <- function(message, attempted_user) {
@@ -55,46 +88,58 @@ credential_checker <- function(conn_reactive) {
   }
 
   function(user, password) {
-    conn <- conn_reactive()
-    if (is.null(conn) || !DBI::dbIsValid(conn)) {
-      return(failure_response("Database connection unavailable.", user))
-    }
+    tryCatch(
+      {
+        conn <- conn_reactive()
+        if (is.null(conn) || !inherits(conn, "DBIConnection") || !DBI::dbIsValid(conn)) {
+          return(failure_response("Database connection unavailable.", user))
+        }
 
-    log_debug("credential_checker", "Authenticating user '", user, "'.")
+        log_debug("credential_checker", "Authenticating user '", user, "'.")
 
-    record <- db_get_user(conn, user)
-    if (is.null(record)) {
-      log_debug("credential_checker", "User '", user, "' not found in database.")
-      return(failure_response("Unknown user", user))
-    }
+        record <- db_get_user(conn, user)
+        if (is.null(record)) {
+          log_debug("credential_checker", "User '", user, "' not found in database.")
+          return(failure_response("Unknown user", user))
+        }
 
-    if (!isTRUE(record$is_active)) {
-      log_debug("credential_checker", "User '", user, "' is inactive.")
-      return(failure_response("Account disabled", user))
-    }
+        if (!isTRUE(record$is_active)) {
+          log_debug("credential_checker", "User '", user, "' is inactive.")
+          return(failure_response("Account disabled", user))
+        }
 
-    valid <- shinymanager::check_password(record$password, password)
-    if (!isTRUE(valid)) {
-      log_debug("credential_checker", "Invalid password provided for user '", user, "'.")
-      return(failure_response("Invalid credentials", user))
-    }
+        valid <- shinymanager::check_password(record$password, password)
+        if (!isTRUE(valid)) {
+          log_debug("credential_checker", "Invalid password provided for user '", user, "'.")
+          return(failure_response("Invalid credentials", user))
+        }
 
-    username <- sanitize_field(record$username, default = sanitize_field(user))
-    role <- sanitize_field(record$role, default = "user")
+        username <- sanitize_field(record$username, default = sanitize_field(user))
+        role <- sanitize_field(record$role, default = "user")
 
-    fullname <- sanitize_field(record$fullname, default = username)
+        fullname <- sanitize_field(record$fullname, default = username)
 
-    list(
-      result = TRUE,
-      user = username,
-      admin = identical(role, "admin"),
-      expire = NA,
-      token = sprintf("rbudgeting-%s-%s", username, as.integer(Sys.time())),
-      info = list(
-        id = record$id,
-        fullname = fullname,
-        role = role
-      )
+        list(
+          result = TRUE,
+          user = username,
+          admin = identical(role, "admin"),
+          expire = NA,
+          token = sprintf("rbudgeting-%s-%s", username, as.integer(Sys.time())),
+          info = list(
+            id = record$id,
+            fullname = fullname,
+            role = role
+          )
+        )
+      },
+      error = function(e) {
+        log_debug(
+          "credential_checker",
+          "Unexpected error while validating credentials: ",
+          conditionMessage(e)
+        )
+        failure_response("Authentication service unavailable.", user)
+      }
     )
   }
 }
