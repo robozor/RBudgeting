@@ -9,7 +9,9 @@ app_ui <- function(request) {
     skin = "light",
     title = "Navigation",
     collapsed = FALSE,
+    class = "secure-hidden",
     bs4Dash::bs4SidebarMenu(
+      id = "main_nav",
       bs4Dash::bs4SidebarMenuItem(
         text = "Dashboard",
         tabName = "dashboard",
@@ -19,11 +21,6 @@ app_ui <- function(request) {
         text = "Users",
         tabName = "users",
         icon = shiny::icon("users")
-      ),
-      bs4Dash::bs4SidebarMenuItem(
-        text = "Setup",
-        tabName = "setup",
-        icon = shiny::icon("tools")
       )
     )
   )
@@ -63,6 +60,7 @@ app_ui <- function(request) {
     controlbar = bs4Dash::bs4DashControlbar(
       id = "controlbar",
       skin = "dark",
+      class = "secure-hidden",
       title = "Theme",
       shiny::tagList(
         shiny::tags$p("Select theme variant"),
@@ -74,8 +72,6 @@ app_ui <- function(request) {
       right = shiny::HTML("<b>Version</b> 0.0.1")
     ),
     body = bs4Dash::bs4DashBody(
-      shinyjs::useShinyjs(),
-      shinyFeedback::useShinyFeedback(),
       shinydashboard::tabItems(
         shinydashboard::tabItem(
           tabName = "dashboard",
@@ -87,10 +83,6 @@ app_ui <- function(request) {
         shinydashboard::tabItem(
           tabName = "users",
           mod_user_management_ui("user_management")
-        ),
-        shinydashboard::tabItem(
-          tabName = "setup",
-          mod_setup_ui("setup")
         )
       )
     )
@@ -106,16 +98,53 @@ app_ui <- function(request) {
   }
 
   page_args <- page_args[names(page_args) %in% available_args]
-  ui <- do.call(bs4Dash::bs4DashPage, page_args)
+  secure_ui <- do.call(bs4Dash::bs4DashPage, page_args)
 
-  shinymanager::secure_app(
-    ui = add_app_dependencies(ui),
-    language = app_settings$language,
-    enable_admin = TRUE,
-    tags_top = shiny::tags$div(
-      shiny::tags$h2("RBudgeting"),
-      shiny::tags$p("Secure authentication provided by shinymanager.")
-    ),
-    theme = NULL
+  setup_header <- shiny::div(
+    class = "setup-header",
+    shiny::tags$h1("RBudgeting setup"),
+    shiny::tags$p("Configure the database before enabling secure access.")
+  )
+
+  setup_public <- shiny::div(
+    id = "public-setup",
+    class = "setup-public-container",
+    bs4Dash::useBs4Dash(),
+    setup_header,
+    mod_setup_ui("setup")
+  )
+
+  visibility_styles <- shiny::tags$head(
+    shiny::tags$style(
+      htmltools::HTML(
+        paste0(
+          "#secure-content.secure-hidden { display: none !important; }\n",
+          "#public-setup.public-hidden { display: none !important; }"
+        )
+      )
+    )
+  )
+
+  add_app_dependencies(
+    shiny::tagList(
+      shinyjs::useShinyjs(),
+      shinyFeedback::useShinyFeedback(),
+      visibility_styles,
+      setup_public,
+      shiny::div(
+        id = "secure-content",
+        class = "secure-hidden",
+        shinymanager::secure_app(
+          ui = secure_ui,
+          language = app_settings$language,
+          enable_admin = TRUE,
+          tags_top = shiny::tags$div(
+            shiny::tags$h2("RBudgeting"),
+            shiny::tags$p("Secure authentication provided by shinymanager.")
+          ),
+          theme = NULL
+        )
+      )
+    )
   )
 }

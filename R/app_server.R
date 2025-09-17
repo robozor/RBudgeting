@@ -30,7 +30,7 @@ app_server <- function(input, output, session) {
 
   notifications <- shiny::reactiveVal(list(
     list(text = "Welcome to RBudgeting", status = "info", icon = "info-circle"),
-    list(text = "Use the Setup tab to configure the database", status = "primary", icon = "tools")
+    list(text = "Use the setup screen to configure the database", status = "primary", icon = "tools")
   ))
 
   output$notifications <- bs4Dash::renderMenu({
@@ -78,7 +78,28 @@ app_server <- function(input, output, session) {
   }, once = TRUE)
 
   mod_setup_server("setup", conn = conn, config = db_cfg)
-  mod_user_management_server("user_management", conn = conn)
+
+  shiny::observeEvent(auth$result, {
+    authed <- isTRUE(auth$result)
+
+    if (authed) {
+      shinyjs::addClass(id = "public-setup", class = "public-hidden")
+      shinyjs::removeClass(selector = "#secure-content", class = "secure-hidden")
+      shinyjs::removeClass(selector = "aside.main-sidebar", class = "secure-hidden")
+      shinyjs::removeClass(selector = "#controlbar", class = "secure-hidden")
+      shinydashboard::updateTabItems(session, inputId = "main_nav", selected = "dashboard")
+    } else {
+      shinyjs::removeClass(id = "public-setup", class = "public-hidden")
+      shinyjs::addClass(selector = "#secure-content", class = "secure-hidden")
+      shinyjs::addClass(selector = "aside.main-sidebar", class = "secure-hidden")
+      shinyjs::addClass(selector = "#controlbar", class = "secure-hidden")
+    }
+  }, ignoreNULL = FALSE)
+
+  shiny::observeEvent(auth$result, {
+    req(isTRUE(auth$result))
+    mod_user_management_server("user_management", conn = conn)
+  }, once = TRUE)
 
   session$userData$notifications <- notifications
 }
