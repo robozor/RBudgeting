@@ -30,6 +30,7 @@ Imports:
     shinydashboard,
     shinyjs,
     shinymanager,
+    sodium,
     shinyWidgets,
     yaml,
     utils

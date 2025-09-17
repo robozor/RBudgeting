@@ -57,7 +57,7 @@ db_install_schema <- function(conn) {
 #' @export
 db_upsert_user <- function(conn, username, password, fullname = NULL, role = "user", active = TRUE) {
   stopifnot(DBI::dbIsValid(conn))
-  hashed <- shinymanager::hash_password(password)
+  hashed <- hash_password_compat(password)
   query <- "INSERT INTO app_users (username, password, fullname, role, is_active)\n            VALUES ($1, $2, $3, $4, $5)\n            ON CONFLICT (username) DO UPDATE SET\n              password = EXCLUDED.password,\n              fullname = EXCLUDED.fullname,\n              role = EXCLUDED.role,\n              is_active = EXCLUDED.is_active,\n              updated_at = NOW();"
   DBI::dbExecute(conn, query, params = list(username, hashed, fullname, role, active))
   TRUE
@@ -130,4 +130,26 @@ db_ensure_admin <- function(conn, username, password, fullname = NULL) {
   } else {
     lhs
   }
+}
+
+#' Hash a password using available shinymanager utilities
+#' @param password Plain text password
+#' @return A hashed password string
+#' @noRd
+hash_password_compat <- function(password) {
+  sm_ns <- asNamespace("shinymanager")
+
+  if (exists("hash_password", envir = sm_ns, inherits = FALSE)) {
+    return(get("hash_password", envir = sm_ns)(password))
+  }
+
+  if (exists("encrypt_password", envir = sm_ns, inherits = FALSE)) {
+    return(get("encrypt_password", envir = sm_ns)(password))
+  }
+
+  if (requireNamespace("sodium", quietly = TRUE)) {
+    return(sodium::password_store(password))
+  }
+
+  stop("No available password hashing implementation found.")
 }
