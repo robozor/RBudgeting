@@ -1,0 +1,17 @@
+default: &default
+  golem_name: RBudgeting
+  golem_version: 0.0.1
+  app_prod: false
+  db:
+    host: localhost
+    port: 5432
+    dbname: rbudgeting
+    user: rbudget_app
+    password: change_me
+    sslmode: prefer
+  app:
+    language: en
+    default_theme: light
+production:
+  <<: *default
+  app_prod: true
