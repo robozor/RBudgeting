@@ -13,7 +13,7 @@ app_server <- function(input, output, session) {
       conn(connection)
     }, error = function(e) {
       shiny::showNotification(
-        paste("Failed to connect to database:", e$message),
+        paste("Failed to connect to database:", conditionMessage(e)),
         type = "error",
         duration = NULL
       )

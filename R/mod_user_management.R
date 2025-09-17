@@ -83,8 +83,9 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
         add_notification(session, paste0("User ", input$username, " saved"), status = "success", icon = "user")
         load_users()
       }, error = function(e) {
-        shinyFeedback::showToast("error", paste("Unable to save user:", e$message))
-        add_notification(session, paste("Unable to save user:", e$message), status = "danger", icon = "exclamation-triangle")
+        message <- conditionMessage(e)
+        shinyFeedback::showToast("error", paste("Unable to save user:", message))
+        add_notification(session, paste("Unable to save user:", message), status = "danger", icon = "exclamation-triangle")
       })
     })
 
@@ -106,8 +107,9 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
         add_notification(session, paste0("User ", input$selected_user, ifelse(new_state, " activated", " deactivated")), status = "info", icon = "user-check")
         load_users()
       }, error = function(e) {
-        shinyFeedback::showToast("error", paste("Unable to change state:", e$message))
-        add_notification(session, paste("Unable to change user state:", e$message), status = "danger", icon = "exclamation-triangle")
+        message <- conditionMessage(e)
+        shinyFeedback::showToast("error", paste("Unable to change state:", message))
+        add_notification(session, paste("Unable to change user state:", message), status = "danger", icon = "exclamation-triangle")
       })
     })
 
@@ -124,8 +126,9 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
         add_notification(session, paste0("User ", input$selected_user, " deleted"), status = "warning", icon = "trash")
         load_users()
       }, error = function(e) {
-        shinyFeedback::showToast("error", paste("Unable to delete user:", e$message))
-        add_notification(session, paste("Unable to delete user:", e$message), status = "danger", icon = "exclamation-triangle")
+        message <- conditionMessage(e)
+        shinyFeedback::showToast("error", paste("Unable to delete user:", message))
+        add_notification(session, paste("Unable to delete user:", message), status = "danger", icon = "exclamation-triangle")
       })
     })
 
