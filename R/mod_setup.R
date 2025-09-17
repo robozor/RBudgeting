@@ -81,8 +81,9 @@ mod_setup_server <- function(id, conn, config) {
         shinyFeedback::showToast("success", success_msg)
         add_notification(session, success_msg, status = status, icon = icon)
       }, error = function(e) {
-        shinyFeedback::showToast("error", paste0(error_msg, ": ", e$message))
-        add_notification(session, paste0(error_msg, ": ", e$message), status = "danger", icon = "exclamation-triangle")
+        message <- conditionMessage(e)
+        shinyFeedback::showToast("error", paste0(error_msg, ": ", message))
+        add_notification(session, paste0(error_msg, ": ", message), status = "danger", icon = "exclamation-triangle")
       })
     }
 
@@ -134,8 +135,9 @@ mod_setup_server <- function(id, conn, config) {
         shinyFeedback::showToast("success", "Database connection refreshed")
         add_notification(session, "Database connection refreshed", status = "success", icon = "plug")
       }, error = function(e) {
-        shinyFeedback::showToast("error", paste("Unable to reconnect:", e$message))
-        add_notification(session, paste("Unable to reconnect:", e$message), status = "danger", icon = "exclamation-triangle")
+        message <- conditionMessage(e)
+        shinyFeedback::showToast("error", paste("Unable to reconnect:", message))
+        add_notification(session, paste("Unable to reconnect:", message), status = "danger", icon = "exclamation-triangle")
       })
     })
 
