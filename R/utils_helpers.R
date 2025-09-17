@@ -238,6 +238,60 @@ format_scalar_for_log <- function(value, fallback = "<unavailable>") {
   coerced[[1]]
 }
 
+#' Resolve Shiny UI candidates into renderable tags
+#'
+#' Some helpers (notably `shinymanager::secure_app`) return functions that must
+#' be executed with the incoming HTTP request in order to obtain the HTML
+#' markup expected by Shiny. This utility normalises such return values into a
+#' `shiny.tag` object, safeguarding against unexpected values while preserving
+#' diagnostics in the log stream.
+#'
+#' @param ui_candidate A UI definition, tag list or function.
+#' @param request The active Shiny request environment, if available.
+#' @param context A short label used in log messages to identify the caller.
+#' @return A `shiny.tag` (or tag list) ready to be inserted into the UI tree.
+resolve_shiny_ui <- function(ui_candidate, request = NULL, context = "ui") {
+  if (!is.function(ui_candidate)) {
+    return(ui_candidate)
+  }
+
+  fn <- ui_candidate
+  fn_formals <- formals(fn)
+
+  call_args <- list()
+  if (length(fn_formals) > 0) {
+    first_arg <- names(fn_formals)[[1]]
+    call_args[[first_arg]] <- request
+  }
+
+  resolved <- tryCatch(
+    do.call(fn, call_args),
+    error = function(e) {
+      log_debug(
+        "resolve_shiny_ui",
+        "Unable to resolve UI for context '",
+        context,
+        "': ",
+        conditionMessage(e),
+        "."
+      )
+      NULL
+    }
+  )
+
+  if (is.null(resolved)) {
+    log_debug(
+      "resolve_shiny_ui",
+      "Context '",
+      context,
+      "' produced NULL; substituting empty tagList."
+    )
+    return(shiny::tagList())
+  }
+
+  resolved
+}
+
 #' Use bs4Dash dependencies across versions
 #'
 #' The exported helper for attaching bs4Dash assets changed between
