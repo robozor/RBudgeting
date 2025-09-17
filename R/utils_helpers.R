@@ -6,8 +6,35 @@ app_sys <- function(...) {
   system.file(..., package = "RBudgeting")
 }
 
-#' Add a notification to the navbar menu
+#' Retrieve sanitized application settings
 #'
+#' Ensures configuration values coming from `golem-config.yml` are usable in the
+#' UI and server layers without additional checks.
+#'
+#' @return A list with `language` and `default_theme` entries.
+get_app_settings <- function() {
+  cfg <- get_golem_config()
+  settings <- cfg$app
+
+  if (is.null(settings) || !is.list(settings)) {
+    settings <- list()
+  }
+
+  language <- settings$language
+  if (!is.character(language) || length(language) != 1 || is.na(language)) {
+    language <- "en"
+  }
+
+  default_theme <- settings$default_theme
+  if (!is.character(default_theme) || length(default_theme) != 1 || is.na(default_theme)) {
+    default_theme <- "light"
+  }
+
+  list(language = language, default_theme = default_theme)
+}
+
+#' Add a notification to the navbar menu
+#' 
 #' @param session Shiny session object
 #' @param text Notification text
 #' @param status Status color (info, primary, danger, ...)

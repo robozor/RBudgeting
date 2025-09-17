@@ -3,6 +3,7 @@
 #' @import shiny
 app_server <- function(input, output, session) {
   db_cfg <- get_db_config()
+  app_settings <- get_app_settings()
   conn <- shiny::reactiveVal(NULL)
 
   shiny::observeEvent(TRUE, {
@@ -71,7 +72,7 @@ app_server <- function(input, output, session) {
   })
 
   shiny::observeEvent(TRUE, {
-    default <- get_golem_config()$app$default_theme %||% "light"
+    default <- app_settings$default_theme
     session$sendCustomMessage("toggle-theme", list(mode = default))
     shinyWidgets::updateMaterialSwitch(session, "theme_toggle", value = identical(default, "dark"))
   }, once = TRUE)

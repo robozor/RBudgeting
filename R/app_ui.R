@@ -3,6 +3,8 @@
 #' Defines the UI layout using bs4Dash components secured by shinymanager.
 #' @import shiny bs4Dash shinyWidgets shinymanager
 app_ui <- function(request) {
+  app_settings <- get_app_settings()
+
   sidebar <- bs4Dash::bs4DashSidebar(
     skin = "light",
     title = "Navigation",
@@ -108,7 +110,7 @@ app_ui <- function(request) {
 
   shinymanager::secure_app(
     ui = add_app_dependencies(ui),
-    language = get_golem_config()$app$language,
+    language = app_settings$language,
     enable_admin = TRUE,
     tags_top = shiny::tags$div(
       shiny::tags$h2("RBudgeting"),
