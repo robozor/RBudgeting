@@ -46,7 +46,7 @@ app_server <- function(input, output, session) {
     session = session
   )
 
-  shinymanager::logoutServer(id = "logout", active = shiny::reactive(auth$result))
+  shinymanager_logout_module(id = "logout", active = shiny::reactive(auth$result))
 
   is_authenticated <- shiny::reactive({
     isTRUE(auth$result)
