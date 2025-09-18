@@ -25,6 +25,37 @@ shinymanager_logout_module <- function(...) {
   shinymanager_logout_module_fallback(...)
 }
 
+#' Render logout control compatible with available shinymanager version
+#'
+#' Some releases do not export `logoutUI()` which this application originally
+#' relied on. This helper attempts to use any known UI helper provided by
+#' shinymanager and falls back to a plain `shiny::actionButton()` when necessary
+#' so the interface keeps offering a logout action.
+shinymanager_logout_ui <- function(id, label = "Logout", class = NULL, ...) {
+  fun <- find_shinymanager_function(
+    c(
+      "logoutUI",
+      "logout_ui",
+      "logout_button",
+      "logout_button_ui"
+    )
+  )
+
+  if (!is.null(fun)) {
+    args <- list(...)
+    args$id <- id
+    if (!("label" %in% names(args))) {
+      args$label <- label
+    }
+    if (!("class" %in% names(args)) && !is.null(class)) {
+      args$class <- class
+    }
+    return(do.call(fun, args))
+  }
+
+  shinymanager_logout_ui_fallback(id, label = label, class = class, ...)
+}
+
 #' Invoke shinymanager authentication module using a compatible API
 #'
 #' shinymanager has changed the calling conventions for `auth_server` across
@@ -111,5 +142,19 @@ shinymanager_logout_module_fallback <- function(id, active = shiny::reactive(TRU
         }
       }, ignoreInit = TRUE)
     }
+  )
+}
+
+shinymanager_logout_ui_fallback <- function(id, label = "Logout", class = NULL, ...) {
+  classes <- c("btn", "btn-default")
+  if (!is.null(class)) {
+    classes <- c(classes, class)
+  }
+
+  shiny::actionButton(
+    inputId = shiny::NS(id, "logout"),
+    label = label,
+    class = paste(unique(classes), collapse = " "),
+    ...
   )
 }

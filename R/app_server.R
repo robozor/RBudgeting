@@ -68,15 +68,19 @@ app_server <- function(input, output, session) {
 
   output$user_badge <- shiny::renderUI({
     if (is_authenticated()) {
-      bslib::badge(current_user(), color = "primary")
+      bslib_badge(current_user(), color = "primary")
     } else {
-      bslib::badge("Nepřihlášen", color = "secondary")
+      bslib_badge("Nepřihlášen", color = "secondary")
     }
   })
 
   output$auth_control <- shiny::renderUI({
     if (is_authenticated()) {
-      shinymanager::logoutUI("logout", label = "Odhlásit se", class = "btn btn-outline-danger")
+      shinymanager_logout_ui(
+        "logout",
+        label = "Odhlásit se",
+        class = "btn btn-outline-danger"
+      )
     } else {
       shiny::actionButton("show_login", "Přihlásit se", class = "btn btn-primary")
     }
