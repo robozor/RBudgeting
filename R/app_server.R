@@ -87,11 +87,11 @@ app_server <- function(input, output, session) {
   })
 
   shiny::observeEvent(input$show_login, {
-    bslib::update_navs(session, "main_nav", selected = "content")
+    bslib::nav_select(session = session, id = "main_nav", selected = "content")
   })
 
   shiny::observeEvent(input$show_login_users, {
-    bslib::update_navs(session, "main_nav", selected = "content")
+    bslib::nav_select(session = session, id = "main_nav", selected = "content")
   })
 
   output$content_nav <- shiny::renderUI({
