@@ -153,3 +153,32 @@ hash_password_compat <- function(password) {
 
   stop("No available password hashing implementation found.")
 }
+
+#' Verify a password using available shinymanager utilities
+#' @param hash Stored password hash
+#' @param password Plain text password to validate
+#' @return TRUE when password matches the stored hash
+#' @noRd
+check_password_compat <- function(hash, password) {
+  sm_ns <- asNamespace("shinymanager")
+
+  if (exists("check_password", envir = sm_ns, inherits = FALSE)) {
+    return(get("check_password", envir = sm_ns)(hash, password))
+  }
+
+  if (exists("hash_password", envir = sm_ns, inherits = FALSE) &&
+      requireNamespace("sodium", quietly = TRUE)) {
+    return(sodium::password_verify(hash, password))
+  }
+
+  if (exists("encrypt_password", envir = sm_ns, inherits = FALSE)) {
+    encrypt <- get("encrypt_password", envir = sm_ns)
+    return(identical(hash, encrypt(password)))
+  }
+
+  if (requireNamespace("sodium", quietly = TRUE)) {
+    return(sodium::password_verify(hash, password))
+  }
+
+  identical(hash, password)
+}
