@@ -108,7 +108,7 @@ credential_checker <- function(conn_reactive) {
           return(failure_response("Account disabled", user))
         }
 
-        valid <- shinymanager::check_password(record$password, password)
+        valid <- check_password_compat(record$password, password)
         if (!isTRUE(valid)) {
           log_debug("credential_checker", "Invalid password provided for user '", user, "'.")
           return(failure_response("Invalid credentials", user))
