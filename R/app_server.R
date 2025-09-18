@@ -38,7 +38,8 @@ app_server <- function(input, output, session) {
   }, once = TRUE)
 
   shiny::onStop(function() {
-    db_disconnect(conn())
+    connection <- shiny::isolate(conn())
+    db_disconnect(connection)
   })
 
   auth <- shinymanager::secure_server(
