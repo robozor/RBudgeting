@@ -15,20 +15,30 @@ app_ui <- function(request) {
 
   sidebar <- bs4Dash::bs4DashSidebar(
     skin = "light",
-    title = "Navigation",
+    title = "Navigace",
     collapsed = FALSE,
     class = "secure-hidden",
     bs4Dash::bs4SidebarMenu(
       id = "main_nav",
       bs4Dash::bs4SidebarMenuItem(
-        text = "Dashboard",
-        tabName = "dashboard",
-        icon = shiny::icon("tachometer-alt")
+        text = "Obsah",
+        tabName = "content",
+        icon = shiny::icon("home")
       ),
       bs4Dash::bs4SidebarMenuItem(
-        text = "Users",
-        tabName = "users",
-        icon = shiny::icon("users")
+        text = "Administrace",
+        icon = shiny::icon("cogs"),
+        startExpanded = TRUE,
+        bs4Dash::bs4SidebarMenuSubItem(
+          text = "Instalace systému",
+          tabName = "setup_admin",
+          icon = shiny::icon("tools")
+        ),
+        bs4Dash::bs4SidebarMenuSubItem(
+          text = "Administrace uživatelů",
+          tabName = "users",
+          icon = shiny::icon("users")
+        )
       )
     )
   )
@@ -41,6 +51,11 @@ app_ui <- function(request) {
       title = shiny::tags$span("RBudgeting"),
       skin = "dark",
       rightUi = shiny::tagList(
+        shiny::tags$li(
+          class = "nav-item d-flex align-items-center px-3",
+          shiny::icon("user-circle", class = "mr-2"),
+          shiny::textOutput("navbar_user", container = shiny::span)
+        ),
         shiny::tags$li(
           class = "nav-item dropdown",
           bs4Dash::dropdownMenuOutput("notifications")
@@ -57,7 +72,7 @@ app_ui <- function(request) {
           class = "nav-item dropdown",
           shiny::actionButton(
             "logout",
-            label = "Logout",
+            label = "Odhlásit se",
             icon = shiny::icon("sign-out-alt")
           )
         )
@@ -82,15 +97,39 @@ app_ui <- function(request) {
     body = bs4Dash::bs4DashBody(
       shinydashboard::tabItems(
         shinydashboard::tabItem(
-          tabName = "dashboard",
-          bs4Dash::bs4Jumbotron(
-            title = "Welcome",
-            lead = "This is the RBudgeting dashboard skeleton."
+          tabName = "content",
+          bs4Dash::bs4Card(
+            title = "Obsah",
+            status = "primary",
+            solidHeader = TRUE,
+            width = 12,
+            shiny::div(
+              class = "text-center py-4",
+              shiny::h3("Vítejte v RBudgeting"),
+              shiny::p("Aktuálně přihlášený uživatel:"),
+              shiny::h4(shiny::textOutput("content_user", container = shiny::span))
+            )
+          )
+        ),
+        shinydashboard::tabItem(
+          tabName = "setup_admin",
+          bs4Dash::bs4Card(
+            title = "Instalace systému",
+            status = "info",
+            solidHeader = TRUE,
+            width = 12,
+            mod_setup_ui("setup_admin")
           )
         ),
         shinydashboard::tabItem(
           tabName = "users",
-          mod_user_management_ui("user_management")
+          bs4Dash::bs4Card(
+            title = "Administrace uživatelů",
+            status = "warning",
+            solidHeader = TRUE,
+            width = 12,
+            mod_user_management_ui("user_management")
+          )
         )
       )
     )
