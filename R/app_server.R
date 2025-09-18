@@ -77,6 +77,20 @@ app_server <- function(input, output, session) {
     do.call(bs4Dash::dropdownMenu, args)
   })
 
+  shiny::observeEvent(input$login, {
+    shinymanager::logout(session = session)
+  })
+
+  shiny::observeEvent(input$login_content, {
+    shinymanager::logout(session = session)
+    shinydashboard::updateTabItems(session, inputId = "public_nav", selected = "content")
+  })
+
+  shiny::observeEvent(input$login_users, {
+    shinymanager::logout(session = session)
+    shinydashboard::updateTabItems(session, inputId = "public_nav", selected = "users")
+  })
+
   shiny::observeEvent(input$logout, {
     shinymanager::logout(session = session)
   })
@@ -88,15 +102,39 @@ app_server <- function(input, output, session) {
     }
   })
 
+  sync_theme_inputs <- function(value, target_id) {
+    shinyWidgets::updateMaterialSwitch(
+      session,
+      inputId = target_id,
+      value = isTRUE(value)
+    )
+  }
+
+  apply_theme <- function(value) {
+    if (isTRUE(value)) "dark" else "light"
+  }
+
   shiny::observeEvent(input$theme_toggle, {
-    mode <- if (isTRUE(input$theme_toggle)) "dark" else "light"
+    mode <- apply_theme(input$theme_toggle)
     session$sendCustomMessage("toggle-theme", list(mode = mode))
+    if (!identical(isTRUE(input$theme_toggle), isTRUE(input$theme_toggle_public))) {
+      sync_theme_inputs(input$theme_toggle, "theme_toggle_public")
+    }
+  })
+
+  shiny::observeEvent(input$theme_toggle_public, {
+    mode <- apply_theme(input$theme_toggle_public)
+    session$sendCustomMessage("toggle-theme", list(mode = mode))
+    if (!identical(isTRUE(input$theme_toggle_public), isTRUE(input$theme_toggle))) {
+      sync_theme_inputs(input$theme_toggle_public, "theme_toggle")
+    }
   })
 
   shiny::observeEvent(TRUE, {
     default <- app_settings$default_theme
     session$sendCustomMessage("toggle-theme", list(mode = default))
     shinyWidgets::updateMaterialSwitch(session, "theme_toggle", value = identical(default, "dark"))
+    shinyWidgets::updateMaterialSwitch(session, "theme_toggle_public", value = identical(default, "dark"))
   }, once = TRUE)
 
   mod_setup_server("setup", conn = conn, config = db_cfg)
@@ -107,13 +145,13 @@ app_server <- function(input, output, session) {
     if (authed) {
       shinyjs::addClass(id = "public-shell", class = "public-hidden")
       shinyjs::removeClass(selector = "#secure-content", class = "secure-hidden")
-      shinyjs::removeClass(selector = "aside.main-sidebar", class = "secure-hidden")
+      shinyjs::removeClass(selector = ".secure-sidebar", class = "secure-hidden")
       shinyjs::removeClass(selector = "#controlbar", class = "secure-hidden")
       shinydashboard::updateTabItems(session, inputId = "main_nav", selected = "content")
     } else {
       shinyjs::removeClass(id = "public-shell", class = "public-hidden")
       shinyjs::addClass(selector = "#secure-content", class = "secure-hidden")
-      shinyjs::addClass(selector = "aside.main-sidebar", class = "secure-hidden")
+      shinyjs::addClass(selector = ".secure-sidebar", class = "secure-hidden")
       shinyjs::addClass(selector = "#controlbar", class = "secure-hidden")
     }
   }, ignoreNULL = FALSE)
@@ -133,7 +171,7 @@ app_server <- function(input, output, session) {
 
   output$navbar_user <- shiny::renderText({
     req(isTRUE(auth_result()))
-    sprintf("Přihlášen: %s", current_user())
+    current_user()
   })
 
   output$content_user <- shiny::renderText({
