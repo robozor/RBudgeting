@@ -76,7 +76,7 @@ app_ui <- function(request) {
       )
     }
 
-    right_ui <- shiny::tagList(
+    right_ui_items <- list(
       shiny::tags$li(
         class = "nav-item dropdown d-flex align-items-center px-3",
         shiny::icon("user-circle", class = "mr-2"),
@@ -101,6 +101,9 @@ app_ui <- function(request) {
         auth_button
       )
     )
+
+    right_ui_items <- Filter(Negate(is.null), right_ui_items)
+    right_ui <- do.call(shiny::tagList, right_ui_items)
 
     bs4Dash::bs4DashNavbar(
       title = shiny::tags$span("RBudgeting"),
