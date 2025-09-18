@@ -69,59 +69,101 @@ db_upsert_user <- function(conn, username, password, fullname = NULL, role = "us
 db_get_users <- function(conn) {
   stopifnot(DBI::dbIsValid(conn))
 
+  base <- DBI::dbGetQuery(
+    conn,
+    "SELECT id, username, fullname, role, is_active, created_at, updated_at FROM app_users ORDER BY username;"
+  )
+
+  base <- dplyr::as_tibble(base)
+
   metadata <- tryCatch(
     DBI::dbGetQuery(conn, "SELECT * FROM app_meta.user_account;"),
     error = function(e) NULL
   )
 
-  if (!is.null(metadata)) {
-    rename_first <- function(df, target, candidates) {
-      for (candidate in candidates) {
-        if (candidate %in% names(df)) {
-          names(df)[names(df) == candidate] <- target
-          break
-        }
+  if (is.null(metadata) || nrow(metadata) == 0) {
+    return(base)
+  }
+
+  rename_first <- function(df, target, candidates) {
+    for (candidate in candidates) {
+      if (candidate %in% names(df)) {
+        names(df)[names(df) == candidate] <- target
+        break
       }
-      df
     }
+    df
+  }
 
-    res <- rename_first(metadata, "username", c("username", "user_name", "login", "login_name"))
+  meta <- rename_first(metadata, "username", c("username", "user_name", "login", "login_name"))
 
-    if ("username" %in% names(res)) {
-      res <- rename_first(res, "fullname", c("fullname", "full_name", "name", "display_name"))
-      res <- rename_first(res, "role", c("role", "role_name", "user_role"))
-      res <- rename_first(res, "is_active", c("is_active", "active", "enabled", "is_enabled"))
-      res <- rename_first(res, "created_at", c("created_at", "created", "created_on"))
-      res <- rename_first(res, "updated_at", c("updated_at", "updated", "updated_on", "modified_at"))
+  if (!"username" %in% names(meta)) {
+    return(base)
+  }
 
-      if (!"id" %in% names(res)) {
-        res$id <- seq_len(nrow(res))
-      }
+  meta$username <- trimws(as.character(meta$username))
 
-      ensure_cols <- c("fullname", "role", "is_active", "created_at", "updated_at")
-      for (nm in ensure_cols) {
-        if (!nm %in% names(res)) {
-          res[[nm]] <- NA
-        }
-      }
+  meta <- rename_first(meta, "fullname", c("fullname", "full_name", "name", "display_name"))
+  meta <- rename_first(meta, "role", c("role", "role_name", "user_role"))
+  meta <- rename_first(meta, "is_active", c("is_active", "active", "enabled", "is_enabled"))
+  meta <- rename_first(meta, "created_at", c("created_at", "created", "created_on"))
+  meta <- rename_first(meta, "updated_at", c("updated_at", "updated", "updated_on", "modified_at"))
 
-      if (nrow(res) > 0 && "username" %in% names(res) && !all(is.na(res$username))) {
-        res <- res[order(res$username), , drop = FALSE]
-      }
-
-      desired <- c("id", "username", "fullname", "role", "is_active", "created_at", "updated_at")
-      res <- res[, unique(c(desired, names(res))), drop = FALSE]
-
-      return(dplyr::as_tibble(res))
+  ensure_cols <- c("fullname", "role", "is_active", "created_at", "updated_at")
+  for (nm in ensure_cols) {
+    if (!nm %in% names(meta)) {
+      meta[[nm]] <- NA
     }
   }
 
-  res <- DBI::dbGetQuery(
-    conn,
-    "SELECT id, username, fullname, role, is_active, created_at, updated_at FROM app_users ORDER BY username;"
+  if ("is_active" %in% names(meta)) {
+    if (is.logical(meta$is_active)) {
+      # nothing to do
+    } else if (is.numeric(meta$is_active)) {
+      meta$is_active <- meta$is_active != 0
+    } else if (is.character(meta$is_active)) {
+      normalized <- tolower(trimws(meta$is_active))
+      meta$is_active <- normalized %in% c("1", "true", "t", "yes", "y", "enabled")
+    } else {
+      meta$is_active <- as.logical(meta$is_active)
+    }
+  }
+
+  meta <- meta[!is.na(meta$username) & nzchar(meta$username), , drop = FALSE]
+
+  if (!"id" %in% names(meta)) {
+    meta$id <- as.integer(NA)
+  }
+
+  # Ensure we keep a single row per username to avoid duplication on join
+  meta <- meta[order(meta$username), , drop = FALSE]
+  meta <- meta[!duplicated(meta$username), , drop = FALSE]
+
+  meta <- dplyr::as_tibble(meta)
+
+  joined <- dplyr::left_join(
+    base,
+    meta,
+    by = "username",
+    suffix = c("", ".meta")
   )
 
-  dplyr::as_tibble(res)
+  coalesce_cols <- function(primary, secondary) {
+    if (!secondary %in% names(joined)) {
+      return(joined[[primary]])
+    }
+    dplyr::coalesce(joined[[primary]], joined[[secondary]])
+  }
+
+  joined$fullname <- coalesce_cols("fullname", "fullname.meta")
+  joined$role <- coalesce_cols("role", "role.meta")
+  joined$is_active <- coalesce_cols("is_active", "is_active.meta")
+  joined$created_at <- coalesce_cols("created_at", "created_at.meta")
+  joined$updated_at <- coalesce_cols("updated_at", "updated_at.meta")
+
+  joined <- dplyr::select(joined, -dplyr::ends_with(".meta"))
+
+  joined
 }
 
 #' Retrieve a single user record including password hash
