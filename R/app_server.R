@@ -4,21 +4,6 @@
 app_server <- function(input, output, session) {
   db_cfg <- get_db_config()
   app_settings <- get_app_settings()
-  message(
-    sprintf(
-      "[app_server] Database config: host=%s, port=%s, dbname=%s, user=%s, sslmode=%s",
-      format_scalar_for_log(db_cfg$host),
-      format_scalar_for_log(db_cfg$port),
-      format_scalar_for_log(db_cfg$dbname),
-      format_scalar_for_log(db_cfg$user),
-      format_scalar_for_log(db_cfg$sslmode)
-    )
-  )
-  message(
-    sprintf(
-      "[app_server] App settings: language=%s", format_scalar_for_log(app_settings$language)
-    )
-  )
 
   conn <- shiny::reactiveVal(NULL)
 

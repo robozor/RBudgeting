@@ -6,9 +6,6 @@
 #'
 #' @import shiny bslib shinyFeedback shinymanager
 app_ui <- function(request) {
-  app_settings <- get_app_settings()
-  log_structure("app_ui.settings", app_settings)
-
   theme <- bslib::bs_theme(version = 5, bootswatch = "flatly")
 
   page <- bslib::page_navbar(
