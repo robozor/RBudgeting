@@ -5,7 +5,7 @@
 mod_setup_ui <- function(id) {
   ns <- shiny::NS(id)
   cfg <- get_db_config()
-  log_structure("mod_setup_ui.config_defaults", cfg)
+  log_structure("mod_setup_ui.config_defaults", redact_sensitive(cfg))
   shiny::tagList(
     bs4Dash::bs4Card(
       title = "Database installation",

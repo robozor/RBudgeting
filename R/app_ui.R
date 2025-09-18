@@ -136,23 +136,20 @@ app_ui <- function(request) {
   )
 
   available_args <- names(formals(bs4Dash::bs4DashPage))
-  message(
-    sprintf(
-      "[app_ui] Detected %d available bs4Dash::bs4DashPage arguments.",
-      length(available_args)
-    )
-  )
-  log_structure("app_ui.available_args", available_args)
 
-  if (!"navbar" %in% available_args && "header" %in% available_args && "navbar" %in% names(page_args)) {
-    page_args$header <- page_args$navbar
-  }
-  if (!"controlbar" %in% available_args && "rightsidebar" %in% available_args && "controlbar" %in% names(page_args)) {
-    page_args$rightsidebar <- page_args$controlbar
+  adapt_page_args <- function(args) {
+    if (!"navbar" %in% available_args && "header" %in% available_args && "navbar" %in% names(args)) {
+      args$header <- args$navbar
+      args$navbar <- NULL
+    }
+    if (!"controlbar" %in% available_args && "rightsidebar" %in% available_args && "controlbar" %in% names(args)) {
+      args$rightsidebar <- args$controlbar
+      args$controlbar <- NULL
+    }
+    args[names(args) %in% available_args]
   }
 
-  page_args <- page_args[names(page_args) %in% available_args]
-  log_structure("app_ui.page_args", page_args)
+  page_args <- adapt_page_args(page_args)
   secure_ui <- tryCatch(
     {
       ui_obj <- do.call(bs4Dash::bs4DashPage, page_args)
@@ -249,18 +246,20 @@ app_ui <- function(request) {
     right = shiny::HTML("<b>Version</b> 0.0.1")
   )
 
+  public_page_args <- adapt_page_args(list(
+    title = "RBudgeting",
+    freshTheme = NULL,
+    preloader = list(html = NULL, color = "#3c8dbc"),
+    navbar = public_navbar,
+    sidebar = public_sidebar,
+    footer = public_footer,
+    body = public_body
+  ))
+
   setup_public <- shiny::div(
     id = "public-shell",
     class = "setup-public-container",
-    bs4Dash::bs4DashPage(
-      title = "RBudgeting",
-      freshTheme = NULL,
-      preloader = list(html = NULL, color = "#3c8dbc"),
-      navbar = public_navbar,
-      sidebar = public_sidebar,
-      footer = public_footer,
-      body = public_body
-    )
+    do.call(bs4Dash::bs4DashPage, public_page_args)
   )
   message(
     sprintf(
