@@ -9,7 +9,9 @@
 #'
 #' @param ... Arguments forwarded to the underlying shinymanager logout module.
 shinymanager_logout_module <- function(...) {
-  fun <- find_shinymanager_function(c("logoutServer", "logout_server"))
+  fun <- find_shinymanager_function(
+    c("logoutServer", "logout_server", "logout_module_server")
+  )
   if (is.null(fun)) {
     stop("Unable to locate a shinymanager logout module.", call. = FALSE)
   }
