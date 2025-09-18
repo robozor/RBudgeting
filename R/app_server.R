@@ -118,8 +118,5 @@ app_server <- function(input, output, session) {
   mod_setup_server("setup", conn = conn, config = db_cfg)
   mod_content_server("content", current_user = current_user, is_authenticated = is_authenticated)
 
-  shiny::observeEvent(is_authenticated(), {
-    shiny::req(is_authenticated())
-    mod_user_management_server("user_management", conn = conn)
-  }, once = TRUE)
+  mod_user_management_server("user_management", conn = conn)
 }
