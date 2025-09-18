@@ -13,72 +13,114 @@ app_ui <- function(request) {
     )
   )
 
-  sidebar <- bs4Dash::bs4DashSidebar(
-    skin = "light",
-    title = "Navigace",
-    collapsed = FALSE,
-    class = "secure-hidden",
-    bs4Dash::bs4SidebarMenu(
-      id = "main_nav",
-      bs4Dash::bs4SidebarMenuItem(
-        text = "Obsah",
-        tabName = "content",
-        icon = shiny::icon("home")
-      ),
-      bs4Dash::bs4SidebarMenuItem(
-        text = "Administrace",
-        icon = shiny::icon("cogs"),
-        startExpanded = TRUE,
-        bs4Dash::bs4SidebarMenuSubItem(
-          text = "Instalace systému",
-          tabName = "setup_admin",
-          icon = shiny::icon("tools")
+  build_sidebar <- function(id, authenticated = FALSE, class = NULL) {
+    setup_item <- bs4Dash::bs4SidebarMenuSubItem(
+      text = "Instalace systému",
+      tabName = "setup",
+      icon = shiny::icon("tools")
+    )
+
+    users_item <- bs4Dash::bs4SidebarMenuSubItem(
+      text = "Administrace uživatelů",
+      tabName = "users",
+      icon = shiny::icon("users")
+    )
+
+    if (!authenticated) {
+      users_item <- shiny::tagAppendAttributes(users_item, class = "menu-item-disabled")
+    }
+
+    admin_menu <- bs4Dash::bs4SidebarMenuItem(
+      text = "Administrace",
+      icon = shiny::icon("cogs"),
+      startExpanded = TRUE,
+      setup_item,
+      users_item
+    )
+
+    bs4Dash::bs4DashSidebar(
+      skin = "light",
+      title = "Navigace",
+      collapsed = FALSE,
+      class = class,
+      bs4Dash::bs4SidebarMenu(
+        id = id,
+        bs4Dash::bs4SidebarMenuItem(
+          text = "Obsah",
+          tabName = "content",
+          icon = shiny::icon("home")
         ),
-        bs4Dash::bs4SidebarMenuSubItem(
-          text = "Administrace uživatelů",
-          tabName = "users",
-          icon = shiny::icon("users")
-        )
+        admin_menu
       )
     )
+  }
+
+  build_navbar <- function(authenticated = FALSE, show_notifications = FALSE, theme_input_id = "theme_toggle") {
+    user_display <- if (authenticated) {
+      shiny::textOutput("navbar_user", container = shiny::span)
+    } else {
+      shiny::span("Nepřihlášen")
+    }
+
+    auth_button <- if (authenticated) {
+      shiny::actionButton(
+        "logout",
+        label = "Logout",
+        icon = shiny::icon("sign-out-alt")
+      )
+    } else {
+      shiny::actionButton(
+        "login",
+        label = "Login",
+        icon = shiny::icon("sign-in-alt")
+      )
+    }
+
+    right_ui <- shiny::tagList(
+      shiny::tags$li(
+        class = "nav-item dropdown d-flex align-items-center px-3",
+        shiny::icon("user-circle", class = "mr-2"),
+        user_display
+      ),
+      if (show_notifications) {
+        shiny::tags$li(
+          class = "nav-item dropdown",
+          bs4Dash::dropdownMenuOutput("notifications")
+        )
+      },
+      shiny::tags$li(
+        class = "nav-item dropdown",
+        shinyWidgets::materialSwitch(
+          inputId = theme_input_id,
+          label = "Dark mode",
+          status = "primary"
+        )
+      ),
+      shiny::tags$li(
+        class = "nav-item dropdown",
+        auth_button
+      )
+    )
+
+    bs4Dash::bs4DashNavbar(
+      title = shiny::tags$span("RBudgeting"),
+      skin = "dark",
+      rightUi = right_ui,
+      controlbarIcon = shiny::icon("sliders-h")
+    )
+  }
+
+  sidebar <- build_sidebar(
+    id = "main_nav",
+    authenticated = TRUE,
+    class = "secure-hidden secure-sidebar"
   )
 
   page_args <- list(
     title = "RBudgeting",
     freshTheme = NULL,
     preloader = list(html = NULL, color = "#3c8dbc"),
-    navbar = bs4Dash::bs4DashNavbar(
-      title = shiny::tags$span("RBudgeting"),
-      skin = "dark",
-      rightUi = shiny::tagList(
-        shiny::tags$li(
-          class = "nav-item dropdown d-flex align-items-center px-3",
-          shiny::icon("user-circle", class = "mr-2"),
-          shiny::textOutput("navbar_user", container = shiny::span)
-        ),
-        shiny::tags$li(
-          class = "nav-item dropdown",
-          bs4Dash::dropdownMenuOutput("notifications")
-        ),
-        shiny::tags$li(
-          class = "nav-item dropdown",
-          shinyWidgets::materialSwitch(
-            inputId = "theme_toggle",
-            label = "Dark mode",
-            status = "primary"
-          )
-        ),
-        shiny::tags$li(
-          class = "nav-item dropdown",
-          shiny::actionButton(
-            "logout",
-            label = "Odhlásit se",
-            icon = shiny::icon("sign-out-alt")
-          )
-        )
-      ),
-      controlbarIcon = shiny::icon("sliders-h")
-    ),
+    navbar = build_navbar(authenticated = TRUE, show_notifications = TRUE, theme_input_id = "theme_toggle"),
     sidebar = sidebar,
     controlbar = bs4Dash::bs4DashControlbar(
       id = "controlbar",
@@ -107,12 +149,12 @@ app_ui <- function(request) {
               class = "text-center py-4",
               shiny::h3("Vítejte v RBudgeting"),
               shiny::p("Aktuálně přihlášený uživatel:"),
-              shiny::h4(shiny::textOutput("content_user", container = shiny::span))
+              shiny::h4(shiny::strong(shiny::textOutput("content_user", container = shiny::span)))
             )
           )
         ),
         shinydashboard::tabItem(
-          tabName = "setup_admin",
+          tabName = "setup",
           bs4Dash::bs4Card(
             title = "Instalace systému",
             status = "info",
@@ -179,53 +221,38 @@ app_ui <- function(request) {
     shiny::tags$p("Configure the database before enabling secure access.")
   )
 
-  public_sidebar <- bs4Dash::bs4DashSidebar(
-    skin = "light",
-    title = "Navigace",
-    collapsed = FALSE,
-    class = "public-menu-disabled",
-    bs4Dash::bs4SidebarMenu(
-      id = "public_nav",
-      bs4Dash::bs4SidebarMenuItem(
-        text = "Instalace systému",
-        tabName = "public_setup",
-        icon = shiny::icon("tools")
-      ),
-      shiny::tagAppendAttributes(
-        bs4Dash::bs4SidebarMenuItem(
-          text = "Obsah",
-          tabName = "public_disabled_content",
-          icon = shiny::icon("home")
-        ),
-        class = "public-disabled"
-      ),
-      shiny::tagAppendAttributes(
-        bs4Dash::bs4SidebarMenuItem(
-          text = "Administrace",
-          tabName = "public_disabled_admin",
-          icon = shiny::icon("cogs")
-        ),
-        class = "public-disabled"
-      )
-    )
+  public_sidebar <- build_sidebar(
+    id = "public_nav",
+    authenticated = FALSE,
+    class = "public-menu public-sidebar"
   )
 
-  public_navbar <- bs4Dash::bs4DashNavbar(
-    title = shiny::tags$span("RBudgeting"),
-    skin = "dark",
-    rightUi = shiny::tagList(
-      shiny::tags$li(
-        class = "nav-item dropdown d-flex align-items-center px-3 text-muted",
-        shiny::icon("user-circle", class = "mr-2"),
-        shiny::span("Nepřihlášen")
-      )
-    )
-  )
+  public_navbar <- build_navbar(authenticated = FALSE, show_notifications = FALSE, theme_input_id = "theme_toggle_public")
 
   public_body <- bs4Dash::bs4DashBody(
     shinydashboard::tabItems(
       shinydashboard::tabItem(
-        tabName = "public_setup",
+        tabName = "content",
+        bs4Dash::bs4Card(
+          title = "Uvítací stránka",
+          status = "primary",
+          solidHeader = TRUE,
+          width = 12,
+          shiny::div(
+            class = "text-center py-4",
+            shiny::h3("Vítejte v RBudgeting"),
+            shiny::p("Přihlaste se pro zobrazení obsahu aplikace."),
+            shiny::actionButton(
+              "login_content",
+              label = "Login",
+              icon = shiny::icon("sign-in-alt"),
+              class = "btn-primary"
+            )
+          )
+        )
+      ),
+      shinydashboard::tabItem(
+        tabName = "setup",
         bs4Dash::bs4Card(
           title = "Instalace systému",
           status = "info",
@@ -235,6 +262,25 @@ app_ui <- function(request) {
           shiny::div(
             class = "public-setup-body",
             mod_setup_ui("setup")
+          )
+        )
+      ),
+      shinydashboard::tabItem(
+        tabName = "users",
+        bs4Dash::bs4Card(
+          title = "Administrace uživatelů",
+          status = "secondary",
+          solidHeader = TRUE,
+          width = 12,
+          shiny::div(
+            class = "text-center py-4",
+            shiny::p("Tato sekce je dostupná pouze po přihlášení."),
+            shiny::actionButton(
+              "login_users",
+              label = "Login",
+              icon = shiny::icon("sign-in-alt"),
+              class = "btn-primary"
+            )
           )
         )
       )
@@ -274,8 +320,9 @@ app_ui <- function(request) {
         paste0(
           "#secure-content.secure-hidden { display: none !important; }\n",
           "#public-shell.public-hidden { display: none !important; }\n",
-          "#public-shell .public-disabled > a { pointer-events: none; opacity: 0.5; }\n",
-          "#public-shell .public-disabled .nav-icon { opacity: 0.6; }"
+          "#public-shell .menu-item-disabled > a { pointer-events: none; opacity: 0.5; }\n",
+          "#public-shell .menu-item-disabled .nav-icon { opacity: 0.6; }\n",
+          "#public-shell .menu-item-disabled .nav-link { cursor: not-allowed; }"
         )
       )
     )
