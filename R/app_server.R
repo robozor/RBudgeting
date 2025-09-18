@@ -85,9 +85,22 @@ app_server <- function(input, output, session) {
     if (!is_authenticated()) {
       return(NULL)
     }
-    shiny::div(
-      class = "navbar-text custom-theme-toggle",
-      shiny::checkboxInput("theme_dark", "Tmavé téma", value = identical(user_theme(), "dark"))
+    current_theme <- user_theme()
+    icon_symbol <- if (identical(current_theme, "dark")) "\u263E" else "\u2600"
+    title <- if (identical(current_theme, "dark")) {
+      "Přepnout na světlé téma"
+    } else {
+      "Přepnout na tmavé téma"
+    }
+    button_class <- paste(
+      "btn btn-sm theme-toggle-btn",
+      if (identical(current_theme, "dark")) "theme-toggle-dark" else "theme-toggle-light"
+    )
+    shiny::actionButton(
+      "theme_toggle",
+      label = shiny::span(class = "theme-toggle-icon", icon_symbol),
+      class = button_class,
+      title = title
     )
   })
 
@@ -164,31 +177,23 @@ app_server <- function(input, output, session) {
 
   shiny::observeEvent(user_theme(), {
     send_theme(user_theme())
-    shiny::updateCheckboxInput(session, "theme_dark", value = identical(user_theme(), "dark"))
   })
 
-  shiny::observeEvent(input$theme_dark, {
+  shiny::observeEvent(input$theme_toggle, {
     if (!is_authenticated()) {
-      shiny::updateCheckboxInput(session, "theme_dark", value = identical(user_theme(), "dark"))
       return()
     }
-    value <- input$theme_dark
-    if (is.null(value)) {
-      return()
-    }
-    target <- if (isTRUE(value)) "dark" else "light"
+    target <- if (identical(user_theme(), "dark")) "light" else "dark"
     if (identical(target, user_theme())) {
       return()
     }
     connection <- conn()
     if (is.null(connection) || !DBI::dbIsValid(connection)) {
       shinyFeedback::showToast("error", "Databáze není dostupná")
-      shiny::updateCheckboxInput(session, "theme_dark", value = identical(user_theme(), "dark"))
       return()
     }
     username <- auth$user %||% ""
     if (!nzchar(username)) {
-      shiny::updateCheckboxInput(session, "theme_dark", value = identical(user_theme(), "dark"))
       return()
     }
     tryCatch({
@@ -200,9 +205,8 @@ app_server <- function(input, output, session) {
       )
     }, error = function(e) {
       shinyFeedback::showToast("error", paste("Uložení tématu selhalo:", conditionMessage(e)))
-      shiny::updateCheckboxInput(session, "theme_dark", value = identical(user_theme(), "dark"))
     })
-  }, ignoreNULL = FALSE)
+  })
 
   mod_setup_server("setup", conn = conn, config = db_cfg)
   mod_content_server("content", current_user = current_user, is_authenticated = is_authenticated)
