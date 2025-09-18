@@ -46,6 +46,15 @@ app_server <- function(input, output, session) {
     check_credentials = credential_checker(conn)
   )
 
+  auth_details <- shiny::reactive({
+    shiny::reactiveValuesToList(auth)
+  })
+
+  auth_result <- shiny::reactive({
+    details <- auth_details()
+    isTRUE(details$result)
+  })
+
   notifications <- shiny::reactiveVal(list(
     list(text = "Welcome to RBudgeting", status = "info", icon = "info-circle"),
     list(text = "Use the setup screen to configure the database", status = "primary", icon = "tools")
@@ -97,8 +106,8 @@ app_server <- function(input, output, session) {
 
   mod_setup_server("setup", conn = conn, config = db_cfg)
 
-  shiny::observeEvent(auth$result, {
-    authed <- isTRUE(auth$result)
+  shiny::observeEvent(auth_result(), {
+    authed <- isTRUE(auth_result())
 
     if (authed) {
       shinyjs::addClass(id = "public-setup", class = "public-hidden")
@@ -115,10 +124,11 @@ app_server <- function(input, output, session) {
   }, ignoreNULL = FALSE)
 
   current_user <- shiny::reactive({
-    req(isTRUE(auth$result))
-    info <- auth$info
+    req(isTRUE(auth_result()))
+    details <- auth_details()
+    info <- details$info
     fullname <- if (!is.null(info) && !is.null(info$fullname)) info$fullname else ""
-    username <- auth$user %||% ""
+    username <- details$user %||% ""
     preferred <- if (nzchar(fullname)) fullname else username
     if (!nzchar(preferred)) {
       "Neznámý uživatel"
@@ -128,22 +138,22 @@ app_server <- function(input, output, session) {
   })
 
   output$navbar_user <- shiny::renderText({
-    req(isTRUE(auth$result))
+    req(isTRUE(auth_result()))
     sprintf("Přihlášen: %s", current_user())
   })
 
   output$content_user <- shiny::renderText({
-    req(isTRUE(auth$result))
+    req(isTRUE(auth_result()))
     current_user()
   })
 
-  shiny::observeEvent(auth$result, {
-    req(isTRUE(auth$result))
+  shiny::observeEvent(auth_result(), {
+    req(isTRUE(auth_result()))
     mod_user_management_server("user_management", conn = conn)
   }, once = TRUE)
 
-  shiny::observeEvent(auth$result, {
-    req(isTRUE(auth$result))
+  shiny::observeEvent(auth_result(), {
+    req(isTRUE(auth_result()))
     mod_setup_server("setup_admin", conn = conn, config = db_cfg)
   }, once = TRUE)
 
