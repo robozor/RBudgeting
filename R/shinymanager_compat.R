@@ -18,10 +18,11 @@ shinymanager_logout_module <- function(...) {
       "module_logout_server"
     )
   )
-  if (is.null(fun)) {
-    stop("Unable to locate a shinymanager logout module.", call. = FALSE)
+  if (!is.null(fun)) {
+    return(fun(...))
   }
-  fun(...)
+
+  shinymanager_logout_module_fallback(...)
 }
 
 find_shinymanager_function <- function(candidates) {
@@ -49,4 +50,27 @@ find_shinymanager_function <- function(candidates) {
   }
 
   NULL
+}
+
+shinymanager_logout_module_fallback <- function(id, active = shiny::reactive(TRUE), ...) {
+  shiny::moduleServer(
+    id,
+    function(input, output, session) {
+      if (!isTRUE(shiny::is.reactive(active))) {
+        active <- shiny::reactive(active)
+      }
+
+      shiny::observeEvent(input$logout, {
+        shiny::req(isTRUE(active()))
+        logout_fun <- find_shinymanager_function(
+          c("logout", "logout_app", "reset", "reset_auth", "set_logout")
+        )
+        if (!is.null(logout_fun)) {
+          try(logout_fun(session = session), silent = TRUE)
+        } else {
+          session$reload()
+        }
+      }, ignoreInit = TRUE)
+    }
+  )
 }
