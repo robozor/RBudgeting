@@ -4,42 +4,40 @@
 mod_user_management_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
-    bs4Dash::bs4Card(
-      title = "Users",
-      width = 12,
-      status = "primary",
-      collapsible = TRUE,
-      solidHeader = TRUE,
-      DT::dataTableOutput(ns("table"))
+    bslib::card(
+      bslib::card_header("Seznam uživatelů"),
+      bslib::card_body(DT::dataTableOutput(ns("table")))
     ),
-    bs4Dash::bs4Card(
-      title = "Add or update user",
-      width = 12,
-      status = "info",
-      collapsible = TRUE,
-      solidHeader = TRUE,
-      shiny::fluidRow(
-        shiny::column(4, shiny::textInput(ns("username"), "Username")),
-        shiny::column(4, shiny::textInput(ns("fullname"), "Full name")),
-        shiny::column(4, shiny::selectInput(ns("role"), "Role", choices = c("user", "manager", "admin")))
+    bslib::layout_columns(
+      col_widths = c(8, 4),
+      bslib::card(
+        bslib::card_header("Přidat nebo upravit uživatele"),
+        bslib::card_body(
+          bslib::layout_columns(
+            col_widths = c(6, 6),
+            shiny::textInput(ns("username"), "Uživatelské jméno"),
+            shiny::textInput(ns("fullname"), "Celé jméno")
+          ),
+          bslib::layout_columns(
+            col_widths = c(6, 6),
+            shiny::selectInput(ns("role"), "Role", choices = c("user", "manager", "admin")),
+            shiny::checkboxInput(ns("is_active"), "Aktivní", value = TRUE)
+          ),
+          shiny::passwordInput(ns("password"), "Heslo"),
+          shiny::actionButton(ns("save"), "Uložit uživatele", icon = shiny::icon("save"), class = "btn btn-primary")
+        )
       ),
-      shiny::fluidRow(
-        shiny::column(6, shiny::passwordInput(ns("password"), "Password")),
-        shiny::column(6, shiny::checkboxInput(ns("is_active"), "Active", value = TRUE))
-      ),
-      shiny::actionButton(ns("save"), "Save user", icon = shiny::icon("save"))
-    ),
-    bs4Dash::bs4Card(
-      title = "Deactivate or delete",
-      width = 12,
-      status = "warning",
-      collapsible = TRUE,
-      solidHeader = TRUE,
-      shiny::fluidRow(
-        shiny::column(6, shiny::selectInput(ns("selected_user"), "Select user", choices = NULL)),
-        shiny::column(6, shiny::actionButton(ns("deactivate"), "Toggle active", icon = shiny::icon("user-slash")))
-      ),
-      shiny::actionButton(ns("delete"), "Delete user", icon = shiny::icon("trash"), class = "btn-danger")
+      bslib::card(
+        bslib::card_header("Další akce"),
+        bslib::card_body(
+          shiny::selectInput(ns("selected_user"), "Vyberte uživatele", choices = NULL),
+          bslib::layout_columns(
+            col_widths = c(6, 6),
+            shiny::actionButton(ns("deactivate"), "Přepnout aktivitu", icon = shiny::icon("user-slash"), class = "btn btn-outline-primary"),
+            shiny::actionButton(ns("delete"), "Smazat", icon = shiny::icon("trash"), class = "btn btn-outline-danger")
+          )
+        )
+      )
     )
   )
 }
@@ -51,8 +49,7 @@ mod_user_management_ui <- function(id) {
 #' @param auth Deprecated
 mod_user_management_server <- function(id, conn, auth = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
-    ns <- session$ns
-
+    
     users <- shiny::reactiveVal(dplyr::tibble())
 
     load_users <- function() {
@@ -74,18 +71,16 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
       shiny::req(input$username, input$password)
       connection <- conn()
       if (is.null(connection) || !DBI::dbIsValid(connection)) {
-        shinyFeedback::showToast("error", "Database unavailable")
+        shinyFeedback::showToast("error", "Databáze není dostupná")
         return()
       }
       tryCatch({
         db_upsert_user(connection, input$username, input$password, fullname = input$fullname, role = input$role, active = input$is_active)
-        shinyFeedback::showToast("success", "User saved")
-        add_notification(session, paste0("User ", input$username, " saved"), status = "success", icon = "user")
+        shinyFeedback::showToast("success", "Uživatel uložen")
         load_users()
       }, error = function(e) {
         message <- conditionMessage(e)
-        shinyFeedback::showToast("error", paste("Unable to save user:", message))
-        add_notification(session, paste("Unable to save user:", message), status = "danger", icon = "exclamation-triangle")
+        shinyFeedback::showToast("error", paste("Uložení se nezdařilo:", message))
       })
     })
 
@@ -93,23 +88,21 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
       shiny::req(input$selected_user)
       connection <- conn()
       if (is.null(connection) || !DBI::dbIsValid(connection)) {
-        shinyFeedback::showToast("error", "Database unavailable")
+        shinyFeedback::showToast("error", "Databáze není dostupná")
         return()
       }
-      selected <- users() %>% dplyr::filter(username == input$selected_user)
+      selected <- dplyr::filter(users(), username == input$selected_user)
       if (nrow(selected) == 0) {
         return()
       }
       new_state <- !isTRUE(selected$is_active[1])
       tryCatch({
         db_set_user_active(connection, input$selected_user, new_state)
-        shinyFeedback::showToast("info", paste0("User ", input$selected_user, ifelse(new_state, " activated", " deactivated")))
-        add_notification(session, paste0("User ", input$selected_user, ifelse(new_state, " activated", " deactivated")), status = "info", icon = "user-check")
+        shinyFeedback::showToast("info", paste0("Uživatel ", input$selected_user, ifelse(new_state, " aktivován", " deaktivován")))
         load_users()
       }, error = function(e) {
         message <- conditionMessage(e)
-        shinyFeedback::showToast("error", paste("Unable to change state:", message))
-        add_notification(session, paste("Unable to change user state:", message), status = "danger", icon = "exclamation-triangle")
+        shinyFeedback::showToast("error", paste("Změna stavu selhala:", message))
       })
     })
 
@@ -117,18 +110,16 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
       shiny::req(input$selected_user)
       connection <- conn()
       if (is.null(connection) || !DBI::dbIsValid(connection)) {
-        shinyFeedback::showToast("error", "Database unavailable")
+        shinyFeedback::showToast("error", "Databáze není dostupná")
         return()
       }
       tryCatch({
         db_delete_user(connection, input$selected_user)
-        shinyFeedback::showToast("warning", paste0("User ", input$selected_user, " deleted"))
-        add_notification(session, paste0("User ", input$selected_user, " deleted"), status = "warning", icon = "trash")
+        shinyFeedback::showToast("warning", paste0("Uživatel ", input$selected_user, " odstraněn"))
         load_users()
       }, error = function(e) {
         message <- conditionMessage(e)
-        shinyFeedback::showToast("error", paste("Unable to delete user:", message))
-        add_notification(session, paste("Unable to delete user:", message), status = "danger", icon = "exclamation-triangle")
+        shinyFeedback::showToast("error", paste("Smazání selhalo:", message))
       })
     })
 

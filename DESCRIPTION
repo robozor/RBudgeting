@@ -8,7 +8,7 @@ Authors@R: c(
            email = "dev@example.com")
     )
 Description: Skeleton of a RBudgeting Shiny application built with
-    golem, bs4Dash, shinymanager, and PostgreSQL integration.
+    golem, bslib, shinymanager, and PostgreSQL integration.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
@@ -17,21 +17,17 @@ RoxygenNote: 7.3.1
 Depends:
     R (>= 4.1)
 Imports:
-    bs4Dash,
+    bslib,
     config,
     DBI,
     dplyr,
     golem,
-    magrittr,
     RPostgres,
     DT,
     shiny,
     shinyFeedback,
-    shinydashboard,
-    shinyjs,
     shinymanager,
     sodium,
-    shinyWidgets,
     yaml,
     utils
 Suggests:

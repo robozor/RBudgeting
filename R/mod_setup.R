@@ -6,48 +6,46 @@ mod_setup_ui <- function(id) {
   ns <- shiny::NS(id)
   cfg <- get_db_config()
   log_structure("mod_setup_ui.config_defaults", redact_sensitive(cfg))
-  shiny::tagList(
-    bs4Dash::bs4Card(
-      title = "Database installation",
-      width = 12,
-      status = "primary",
-      collapsible = TRUE,
-      solidHeader = TRUE,
-      shiny::fluidRow(
-        shiny::column(6,
+
+  bslib::card(
+    bslib::card_header("Konfigurace databáze"),
+    bslib::card_body(
+      bslib::layout_columns(
+        col_widths = c(6, 6),
+        shiny::div(
+          class = "d-grid gap-3",
           shiny::textInput(ns("host"), "Host", value = cfg$host),
           shiny::numericInput(ns("port"), "Port", value = cfg$port, min = 1, max = 65535),
-          shiny::textInput(ns("dbname"), "Database", value = cfg$dbname)
+          shiny::textInput(ns("dbname"), "Databáze", value = cfg$dbname)
         ),
-        shiny::column(6,
-          shiny::textInput(ns("user"), "User", value = cfg$user),
-          shiny::passwordInput(ns("password"), "Password", value = cfg$password),
-          shiny::selectInput(ns("sslmode"), "SSL mode", choices = c("disable", "allow", "prefer", "require", "verify-ca", "verify-full"), selected = cfg$sslmode %||% "prefer")
+        shiny::div(
+          class = "d-grid gap-3",
+          shiny::textInput(ns("user"), "Uživatel", value = cfg$user),
+          shiny::passwordInput(ns("password"), "Heslo", value = cfg$password),
+          shiny::selectInput(
+            ns("sslmode"),
+            "Režim SSL",
+            choices = c("disable", "allow", "prefer", "require", "verify-ca", "verify-full"),
+            selected = cfg$sslmode %||% "prefer"
+          )
         )
       ),
-      shiny::fluidRow(
-        shiny::column(3, shiny::actionButton(ns("test"), "Test connection", icon = shiny::icon("plug"))),
-        shiny::column(3, shiny::actionButton(ns("install"), "Install schema", icon = shiny::icon("database"))),
-        shiny::column(3, shiny::actionButton(ns("store"), "Store configuration", icon = shiny::icon("save"))),
-        shiny::column(3, shiny::actionButton(ns("load"), "Load configuration", icon = shiny::icon("folder-open")))
+      bslib::layout_columns(
+        col_widths = c(3, 3, 3, 3),
+        shiny::actionButton(ns("test"), "Test připojení", icon = shiny::icon("plug"), class = "btn btn-outline-primary w-100"),
+        shiny::actionButton(ns("install"), "Instalovat schéma", icon = shiny::icon("database"), class = "btn btn-outline-primary w-100"),
+        shiny::actionButton(ns("store"), "Uložit konfiguraci", icon = shiny::icon("save"), class = "btn btn-outline-primary w-100"),
+        shiny::actionButton(ns("load"), "Načíst konfiguraci", icon = shiny::icon("folder-open"), class = "btn btn-outline-primary w-100")
       ),
+      bslib::card_divider(),
       shiny::div(
-        class = "mt-3",
-        shiny::actionButton(ns("show_login"), "Go to login", icon = shiny::icon("sign-in-alt"), class = "btn btn-success")
+        class = "d-grid gap-3",
+        shiny::tags$h4("Vytvoření administrátora"),
+        shiny::textInput(ns("admin_user"), "Uživatelské jméno", value = "admin"),
+        shiny::textInput(ns("admin_name"), "Celé jméno"),
+        shiny::passwordInput(ns("admin_password"), "Heslo"),
+        shiny::actionButton(ns("create_admin"), "Vytvořit administrátora", icon = shiny::icon("user-shield"), class = "btn btn-primary w-100")
       )
-    ),
-    bs4Dash::bs4Card(
-      title = "Create initial administrator",
-      width = 12,
-      status = "info",
-      collapsible = TRUE,
-      solidHeader = TRUE,
-      shiny::fluidRow(
-        shiny::column(4, shiny::textInput(ns("admin_user"), "Admin username", value = "admin")),
-        shiny::column(4, shiny::textInput(ns("admin_name"), "Admin full name")),
-        shiny::column(4, shiny::passwordInput(ns("admin_password"), "Admin password"))
-      ),
-      shiny::actionButton(ns("create_admin"), "Create administrator", icon = shiny::icon("user-shield"))
     )
   )
 }
@@ -60,8 +58,7 @@ mod_setup_ui <- function(id) {
 #' @return The updated configuration reactive values
 mod_setup_server <- function(id, conn, config) {
   shiny::moduleServer(id, function(input, output, session) {
-    ns <- session$ns
-
+    
     current_cfg <- shiny::reactiveValues(
       host = config$host,
       port = config$port,
@@ -106,19 +103,16 @@ mod_setup_server <- function(id, conn, config) {
         db_disconnect(existing)
       }
       conn(db_connect(cfg))
-      shinyFeedback::showToast("success", "Database connection refreshed")
-      add_notification(session, "Database connection refreshed", status = "success", icon = "plug")
+      shinyFeedback::showToast("success", "Spojení s databází obnoveno")
     }
 
-    observe_result <- function(expr, success_msg, error_msg, status = "success", icon = "check") {
+    observe_result <- function(expr, success_msg, error_msg) {
       tryCatch({
         expr
         shinyFeedback::showToast("success", success_msg)
-        add_notification(session, success_msg, status = status, icon = icon)
       }, error = function(e) {
         message <- conditionMessage(e)
         shinyFeedback::showToast("error", paste0(error_msg, ": ", message))
-        add_notification(session, paste0(error_msg, ": ", message), status = "danger", icon = "exclamation-triangle")
       })
     }
 
@@ -128,7 +122,7 @@ mod_setup_server <- function(id, conn, config) {
         temp_conn <- db_connect(cfg)
         on.exit(db_disconnect(temp_conn))
         DBI::dbGetQuery(temp_conn, "SELECT 1;")
-      }, success_msg = "Connection succeeded", error_msg = "Connection failed", status = "success", icon = "plug")
+      }, success_msg = "Připojení úspěšné", error_msg = "Test připojení selhal")
     })
 
     shiny::observeEvent(input$install, {
@@ -137,7 +131,7 @@ mod_setup_server <- function(id, conn, config) {
         temp_conn <- db_connect(cfg)
         on.exit(db_disconnect(temp_conn))
         db_install_schema(temp_conn)
-      }, success_msg = "Schema ready", error_msg = "Schema installation failed", status = "primary", icon = "database")
+      }, success_msg = "Schéma připraveno", error_msg = "Instalace schématu selhala")
     })
 
     shiny::observeEvent(input$create_admin, {
@@ -147,7 +141,7 @@ mod_setup_server <- function(id, conn, config) {
         temp_conn <- db_connect(cfg)
         on.exit(db_disconnect(temp_conn))
         db_ensure_admin(temp_conn, input$admin_user, input$admin_password, input$admin_name)
-      }, success_msg = "Administrator ready", error_msg = "Admin creation failed", status = "info", icon = "user-shield")
+      }, success_msg = "Administrátor vytvořen", error_msg = "Vytvoření administrátora selhalo")
     })
 
     shiny::observeEvent(input$store, {
@@ -157,23 +151,19 @@ mod_setup_server <- function(id, conn, config) {
         sanitized <- sanitize_db_configuration(cfg)
         update_current_cfg(sanitized)
         reconnect(sanitized)
-      }, success_msg = "Configuration stored", error_msg = "Failed to store configuration", status = "info", icon = "save")
+      }, success_msg = "Konfigurace uložena", error_msg = "Konfiguraci se nepodařilo uložit")
     })
 
     shiny::observeEvent(input$load, {
       observe_result({
         loaded <- load_persisted_db_config()
         if (is.null(loaded)) {
-          stop("No configuration file available")
+          stop("Konfigurační soubor není k dispozici")
         }
         sanitized <- sanitize_db_configuration(loaded)
         update_current_cfg(sanitized, update_inputs = TRUE)
         reconnect(sanitized)
-      }, success_msg = "Configuration loaded", error_msg = "Unable to load configuration", status = "info", icon = "folder-open")
-    })
-
-    shiny::observeEvent(input$show_login, {
-      shinyjs::removeClass(selector = "#secure-content", class = "secure-hidden")
+      }, success_msg = "Konfigurace načtena", error_msg = "Konfiguraci se nepodařilo načíst")
     })
 
     shiny::reactive(current_cfg)
