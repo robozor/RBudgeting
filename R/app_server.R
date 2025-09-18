@@ -16,11 +16,10 @@ app_server <- function(input, output, session) {
   )
   message(
     sprintf(
-      "[app_server] App settings: language=%s, default_theme=%s",
-      format_scalar_for_log(app_settings$language),
-      format_scalar_for_log(app_settings$default_theme)
+      "[app_server] App settings: language=%s", format_scalar_for_log(app_settings$language)
     )
   )
+
   conn <- shiny::reactiveVal(NULL)
 
   shiny::observeEvent(TRUE, {
@@ -42,122 +41,20 @@ app_server <- function(input, output, session) {
     db_disconnect(connection)
   })
 
-  auth <- shinymanager::secure_server(
-    check_credentials = credential_checker(conn)
+  auth <- shinymanager::auth_server(
+    id = "auth",
+    check_credentials = credential_checker(conn),
+    session = session
   )
 
-  auth_result <- shiny::reactive({
+  shinymanager::logoutServer(id = "logout", active = shiny::reactive(auth$result))
+
+  is_authenticated <- shiny::reactive({
     isTRUE(auth$result)
   })
 
-  notifications <- shiny::reactiveVal(list(
-    list(text = "Welcome to RBudgeting", status = "info", icon = "info-circle"),
-    list(text = "Use the setup screen to configure the database", status = "primary", icon = "tools")
-  ))
-
-  output$notifications <- bs4Dash::renderMenu({
-    items <- notifications()
-    args <- list(
-      type = "notifications",
-      badgeStatus = if (length(items) > 0) items[[1]]$status else NULL,
-      headerText = "Notifications"
-    )
-    if (length(items) > 0) {
-      args <- c(
-        args,
-        lapply(items, function(item) {
-          bs4Dash::notificationItem(
-            text = item$text,
-            status = item$status,
-            icon = shiny::icon(item$icon)
-          )
-        })
-      )
-    }
-    do.call(bs4Dash::dropdownMenu, args)
-  })
-
-  shiny::observeEvent(input$login, {
-    shinymanager::logout(session = session)
-  })
-
-  shiny::observeEvent(input$login_content, {
-    shinymanager::logout(session = session)
-    shinydashboard::updateTabItems(session, inputId = "public_nav", selected = "content")
-  })
-
-  shiny::observeEvent(input$login_users, {
-    shinymanager::logout(session = session)
-    shinydashboard::updateTabItems(session, inputId = "public_nav", selected = "users")
-  })
-
-  shiny::observeEvent(input$logout, {
-    shinymanager::logout(session = session)
-  })
-
-  shiny::observeEvent(conn(), {
-    connection <- conn()
-    if (is.null(connection) || !DBI::dbIsValid(connection)) {
-      shiny::showNotification("Database connection not available", type = "error")
-    }
-  })
-
-  sync_theme_inputs <- function(value, target_id) {
-    shinyWidgets::updateMaterialSwitch(
-      session,
-      inputId = target_id,
-      value = isTRUE(value)
-    )
-  }
-
-  apply_theme <- function(value) {
-    if (isTRUE(value)) "dark" else "light"
-  }
-
-  shiny::observeEvent(input$theme_toggle, {
-    mode <- apply_theme(input$theme_toggle)
-    session$sendCustomMessage("toggle-theme", list(mode = mode))
-    if (!identical(isTRUE(input$theme_toggle), isTRUE(input$theme_toggle_public))) {
-      sync_theme_inputs(input$theme_toggle, "theme_toggle_public")
-    }
-  })
-
-  shiny::observeEvent(input$theme_toggle_public, {
-    mode <- apply_theme(input$theme_toggle_public)
-    session$sendCustomMessage("toggle-theme", list(mode = mode))
-    if (!identical(isTRUE(input$theme_toggle_public), isTRUE(input$theme_toggle))) {
-      sync_theme_inputs(input$theme_toggle_public, "theme_toggle")
-    }
-  })
-
-  shiny::observeEvent(TRUE, {
-    default <- app_settings$default_theme
-    session$sendCustomMessage("toggle-theme", list(mode = default))
-    shinyWidgets::updateMaterialSwitch(session, "theme_toggle", value = identical(default, "dark"))
-    shinyWidgets::updateMaterialSwitch(session, "theme_toggle_public", value = identical(default, "dark"))
-  }, once = TRUE)
-
-  mod_setup_server("setup", conn = conn, config = db_cfg)
-
-  shiny::observeEvent(auth_result(), {
-    authed <- isTRUE(auth_result())
-
-    if (authed) {
-      shinyjs::addClass(id = "public-shell", class = "public-hidden")
-      shinyjs::removeClass(selector = "#secure-content", class = "secure-hidden")
-      shinyjs::removeClass(selector = ".secure-sidebar", class = "secure-hidden")
-      shinyjs::removeClass(selector = "#controlbar", class = "secure-hidden")
-      shinydashboard::updateTabItems(session, inputId = "main_nav", selected = "content")
-    } else {
-      shinyjs::removeClass(id = "public-shell", class = "public-hidden")
-      shinyjs::addClass(selector = "#secure-content", class = "secure-hidden")
-      shinyjs::addClass(selector = ".secure-sidebar", class = "secure-hidden")
-      shinyjs::addClass(selector = "#controlbar", class = "secure-hidden")
-    }
-  }, ignoreNULL = FALSE)
-
   current_user <- shiny::reactive({
-    req(isTRUE(auth_result()))
+    shiny::req(is_authenticated())
     info <- auth$info
     fullname <- if (!is.null(info) && !is.null(info$fullname)) info$fullname else ""
     username <- auth$user %||% ""
@@ -169,25 +66,71 @@ app_server <- function(input, output, session) {
     }
   })
 
-  output$navbar_user <- shiny::renderText({
-    req(isTRUE(auth_result()))
-    current_user()
+  output$user_badge <- shiny::renderUI({
+    if (is_authenticated()) {
+      bslib::badge(current_user(), color = "primary")
+    } else {
+      bslib::badge("Nepřihlášen", color = "secondary")
+    }
   })
 
-  output$content_user <- shiny::renderText({
-    req(isTRUE(auth_result()))
-    current_user()
+  output$auth_control <- shiny::renderUI({
+    if (is_authenticated()) {
+      shinymanager::logoutUI("logout", label = "Odhlásit se", class = "btn btn-outline-danger")
+    } else {
+      shiny::actionButton("show_login", "Přihlásit se", class = "btn btn-primary")
+    }
   })
 
-  shiny::observeEvent(auth_result(), {
-    req(isTRUE(auth_result()))
+  shiny::observeEvent(input$show_login, {
+    bslib::update_navs(session, "main_nav", selected = "content")
+  })
+
+  shiny::observeEvent(input$show_login_users, {
+    bslib::update_navs(session, "main_nav", selected = "content")
+  })
+
+  output$content_nav <- shiny::renderUI({
+    if (is_authenticated()) {
+      mod_content_ui("content")
+    } else {
+      bslib::card(
+        bslib::card_header("Přihlášení"),
+        bslib::card_body(
+          shinymanager::auth_ui(
+            id = "auth",
+            title = "Přihlášení do RBudgeting",
+            status = "primary",
+            choose_language = FALSE,
+            tags_top = shiny::tags$p(
+              class = "text-muted",
+              sprintf("Aktuální jazyk rozhraní: %s", app_settings$language)
+            )
+          )
+        )
+      )
+    }
+  })
+
+  output$users_panel <- shiny::renderUI({
+    if (is_authenticated()) {
+      mod_user_management_ui("user_management")
+    } else {
+      bslib::card(
+        bslib::card_header("Administrace uživatelů"),
+        bslib::card_body(
+          shiny::p("Přihlaste se pro správu uživatelů."),
+          shiny::actionButton("show_login_users", "Přejít na přihlášení", class = "btn btn-link")
+        )
+      )
+    }
+  })
+
+  mod_setup_server("setup", conn = conn, config = db_cfg)
+  mod_content_server("content", current_user = current_user, is_authenticated = is_authenticated)
+
+  shiny::observeEvent(is_authenticated(), {
+    shiny::req(is_authenticated())
     mod_user_management_server("user_management", conn = conn)
   }, once = TRUE)
-
-  shiny::observeEvent(auth_result(), {
-    req(isTRUE(auth_result()))
-    mod_setup_server("setup_admin", conn = conn, config = db_cfg)
-  }, once = TRUE)
-
-  session$userData$notifications <- notifications
 }

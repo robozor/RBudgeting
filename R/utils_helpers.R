@@ -319,25 +319,6 @@ resolve_shiny_ui <- function(ui_candidate, request = NULL, context = "ui") {
   resolved
 }
 
-#' Use bs4Dash dependencies across versions
-#'
-#' The exported helper for attaching bs4Dash assets changed between
-#' package releases. This wrapper tries the available function without
-#' triggering errors on older or newer versions.
-use_bs4dash_dependencies <- function() {
-  if (!requireNamespace("bs4Dash", quietly = TRUE)) {
-    log_debug("use_bs4dash_dependencies", "bs4Dash namespace unavailable; returning empty tagList.")
-    return(shiny::tagList())
-  }
-
-  ns <- asNamespace("bs4Dash")
-  helpers <- c("useBs4Dash", "use_bs4dash")
-
-  for (helper_name in helpers) {
-    if (!exists(helper_name, envir = ns, inherits = FALSE)) {
-      next
-    }
-
     helper <- get(helper_name, envir = ns)
     result <- tryCatch(
       if (is.function(helper)) helper() else helper,
