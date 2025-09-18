@@ -46,13 +46,8 @@ app_server <- function(input, output, session) {
     check_credentials = credential_checker(conn)
   )
 
-  auth_details <- shiny::reactive({
-    shiny::reactiveValuesToList(auth)
-  })
-
   auth_result <- shiny::reactive({
-    details <- auth_details()
-    isTRUE(details$result)
+    isTRUE(auth$result)
   })
 
   notifications <- shiny::reactiveVal(list(
@@ -125,10 +120,9 @@ app_server <- function(input, output, session) {
 
   current_user <- shiny::reactive({
     req(isTRUE(auth_result()))
-    details <- auth_details()
-    info <- details$info
+    info <- auth$info
     fullname <- if (!is.null(info) && !is.null(info$fullname)) info$fullname else ""
-    username <- details$user %||% ""
+    username <- auth$user %||% ""
     preferred <- if (nzchar(fullname)) fullname else username
     if (!nzchar(preferred)) {
       "Neznámý uživatel"
