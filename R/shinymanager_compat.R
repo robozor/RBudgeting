@@ -25,6 +25,45 @@ shinymanager_logout_module <- function(...) {
   shinymanager_logout_module_fallback(...)
 }
 
+#' Invoke shinymanager authentication module using a compatible API
+#'
+#' shinymanager has changed the calling conventions for `auth_server` across
+#' releases. Some versions expect to be used through `shiny::callModule` with
+#' the `input`, `output`, and `session` triple, while newer releases expose a
+#' `moduleServer` wrapper taking `id` as the first argument. This helper
+#' inspects the available signature and chooses the appropriate invocation so
+#' that the rest of the application can remain agnostic of those differences.
+#'
+#' @param id Module identifier matching the UI call to `auth_ui`.
+#' @param session Current shiny session (used when required by legacy APIs).
+#' @param ... Additional arguments forwarded to the underlying implementation.
+shinymanager_auth_server <- function(id, session, ...) {
+  fun <- find_shinymanager_function(c("auth_server", "authServer"))
+
+  if (is.null(fun)) {
+    stop("No shinymanager authentication server function available.")
+  }
+
+  formals_names <- names(formals(fun))
+
+  if (length(formals_names) >= 3 && identical(formals_names[1:3], c("input", "output", "session"))) {
+    return(shiny::callModule(fun, id, ...))
+  }
+
+  if (length(formals_names) >= 1 && identical(formals_names[1], "id")) {
+    args <- list(...)
+    args$id <- id
+    return(do.call(fun, args))
+  }
+
+  args <- list(...)
+  if ("session" %in% formals_names && !("session" %in% names(args))) {
+    args$session <- session
+  }
+
+  do.call(fun, args)
+}
+
 find_shinymanager_function <- function(candidates) {
   if (!requireNamespace("shinymanager", quietly = TRUE)) {
     return(NULL)
