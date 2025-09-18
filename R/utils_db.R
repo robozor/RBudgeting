@@ -69,19 +69,40 @@ db_upsert_user <- function(conn, username, password, fullname = NULL, role = "us
 db_get_users <- function(conn) {
   stopifnot(DBI::dbIsValid(conn))
 
+  log_debug("db_get_users", "Starting fetch from app_users.")
+
   base <- DBI::dbGetQuery(
     conn,
     "SELECT id, username, fullname, role, is_active, created_at, updated_at FROM app_users ORDER BY username;"
   )
 
+  log_debug("db_get_users", sprintf("Primary query returned %s rows.", nrow(base)))
+  log_structure("db_get_users:base", base)
+
   base <- dplyr::as_tibble(base)
 
   metadata <- tryCatch(
-    DBI::dbGetQuery(conn, "SELECT * FROM app_meta.user_account;"),
-    error = function(e) NULL
+    {
+      log_debug("db_get_users", "Attempting to load metadata from app_meta.user_account.")
+      DBI::dbGetQuery(conn, "SELECT * FROM app_meta.user_account;")
+    },
+    error = function(e) {
+      log_debug(
+        "db_get_users",
+        "Metadata query failed: ",
+        conditionMessage(e)
+      )
+      NULL
+    }
   )
 
+  if (!is.null(metadata)) {
+    log_debug("db_get_users", sprintf("Metadata query returned %s rows.", nrow(metadata)))
+    log_structure("db_get_users:metadata", metadata)
+  }
+
   if (is.null(metadata) || nrow(metadata) == 0) {
+    log_debug("db_get_users", "No metadata available; returning primary result set only.")
     return(base)
   }
 
@@ -162,6 +183,9 @@ db_get_users <- function(conn) {
   joined$updated_at <- coalesce_cols("updated_at", "updated_at.meta")
 
   joined <- dplyr::select(joined, -dplyr::ends_with(".meta"))
+
+  log_debug("db_get_users", sprintf("Returning %s rows after metadata merge.", nrow(joined)))
+  log_structure("db_get_users:joined", joined)
 
   joined
 }

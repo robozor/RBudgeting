@@ -7,10 +7,29 @@ app_sys <- function(...) {
 }
 
 log_debug <- function(tag, ...) {
+  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  tag_formatted <- format_scalar_for_log(tag, fallback = "<missing_tag>")
+  fragments <- list(...)
+
+  if (length(fragments) > 0) {
+    fragments <- vapply(
+      fragments,
+      format_scalar_for_log,
+      character(1),
+      fallback = "<empty>"
+    )
+    message(sprintf("[%s] [%s] %s", timestamp, tag_formatted, paste(fragments, collapse = "")))
+  } else {
+    message(sprintf("[%s] [%s]", timestamp, tag_formatted))
+  }
+
   invisible(NULL)
 }
 
 log_structure <- function(tag, value) {
+  header <- sprintf("[%s] structure:", format_scalar_for_log(tag, fallback = "<missing_tag>"))
+  body <- utils::capture.output(utils::str(value, give.attr = FALSE))
+  message(paste(c(header, body), collapse = "\n"))
   invisible(NULL)
 }
 

@@ -66,6 +66,16 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
 
     users <- shiny::reactiveVal(NULL)
 
+    empty_user_table <- dplyr::tibble(
+      id = integer(),
+      username = character(),
+      fullname = character(),
+      role = character(),
+      is_active = logical(),
+      created_at = as.POSIXct(character()),
+      updated_at = as.POSIXct(character())
+    )
+
     update_user_choices <- function(data) {
       choices <- character()
       if (!is.null(data) && "username" %in% names(data)) {
@@ -114,7 +124,19 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
 
     output$table <- DT::renderDT({
       data <- users()
-      req(!is.null(data))
+      if (is.null(data)) {
+        log_debug("user_management:render", "User data not yet available; showing empty table.")
+        return(empty_user_table)
+      }
+
+      row_count <- nrow(data)
+      log_debug("user_management:render", sprintf("Rendering table with %s rows.", row_count))
+      log_structure("user_management:render", data)
+
+      if (row_count == 0) {
+        log_debug("user_management:render", "User dataset is empty; preserving column structure.")
+      }
+
       data
     }, options = list(pageLength = 10, scrollX = TRUE), rownames = FALSE)
 
