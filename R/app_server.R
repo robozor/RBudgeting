@@ -105,7 +105,7 @@ app_server <- function(input, output, session) {
       shinyjs::removeClass(selector = "#secure-content", class = "secure-hidden")
       shinyjs::removeClass(selector = "aside.main-sidebar", class = "secure-hidden")
       shinyjs::removeClass(selector = "#controlbar", class = "secure-hidden")
-      shinydashboard::updateTabItems(session, inputId = "main_nav", selected = "dashboard")
+      shinydashboard::updateTabItems(session, inputId = "main_nav", selected = "content")
     } else {
       shinyjs::removeClass(id = "public-setup", class = "public-hidden")
       shinyjs::addClass(selector = "#secure-content", class = "secure-hidden")
@@ -114,9 +114,37 @@ app_server <- function(input, output, session) {
     }
   }, ignoreNULL = FALSE)
 
+  current_user <- shiny::reactive({
+    req(isTRUE(auth$result))
+    info <- auth$info
+    fullname <- if (!is.null(info) && !is.null(info$fullname)) info$fullname else ""
+    username <- auth$user %||% ""
+    preferred <- if (nzchar(fullname)) fullname else username
+    if (!nzchar(preferred)) {
+      "Neznámý uživatel"
+    } else {
+      preferred
+    }
+  })
+
+  output$navbar_user <- shiny::renderText({
+    req(isTRUE(auth$result))
+    sprintf("Přihlášen: %s", current_user())
+  })
+
+  output$content_user <- shiny::renderText({
+    req(isTRUE(auth$result))
+    current_user()
+  })
+
   shiny::observeEvent(auth$result, {
     req(isTRUE(auth$result))
     mod_user_management_server("user_management", conn = conn)
+  }, once = TRUE)
+
+  shiny::observeEvent(auth$result, {
+    req(isTRUE(auth$result))
+    mod_setup_server("setup_admin", conn = conn, config = db_cfg)
   }, once = TRUE)
 
   session$userData$notifications <- notifications
