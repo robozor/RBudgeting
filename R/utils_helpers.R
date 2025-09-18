@@ -7,36 +7,11 @@ app_sys <- function(...) {
 }
 
 log_debug <- function(tag, ...) {
-  fragments <- lapply(list(...), function(piece) {
-    if (is.null(piece)) {
-      return("NULL")
-    }
-    if (is.character(piece)) {
-      return(paste(piece, collapse = ""))
-    }
-    if (is.list(piece) || is.environment(piece)) {
-      return(
-        tryCatch(
-          paste(capture.output(utils::str(piece)), collapse = " | "),
-          error = function(e) sprintf("<unserializable: %s>", conditionMessage(e))
-        )
-      )
-    }
-    tryCatch(
-      toString(piece),
-      error = function(e) sprintf("<unserializable: %s>", conditionMessage(e))
-    )
-  })
-
-  message(sprintf("[%s] %s", tag, paste(fragments, collapse = "")))
+  invisible(NULL)
 }
 
 log_structure <- function(tag, value) {
-  details <- tryCatch(
-    paste(capture.output(utils::str(value)), collapse = " | "),
-    error = function(e) sprintf("<unable to inspect: %s>", conditionMessage(e))
-  )
-  message(sprintf("[%s] %s", tag, details))
+  invisible(NULL)
 }
 
 redact_sensitive <- function(value, fields = c("password")) {
@@ -79,8 +54,6 @@ get_app_settings <- function() {
     settings <- list()
   }
 
-  log_structure("get_app_settings.raw", settings)
-
   language <- sanitize_scalar_character(settings$language, default = "en")
 
   default_theme <- sanitize_scalar_character(settings$default_theme, default = "light")
@@ -93,14 +66,6 @@ get_app_settings <- function() {
     )
     default_theme <- "light"
   }
-
-  message(
-    sprintf(
-      "[get_app_settings] Sanitized values -> language: '%s', default_theme: '%s'",
-      language,
-      default_theme
-    )
-  )
 
   list(language = language, default_theme = default_theme)
 }

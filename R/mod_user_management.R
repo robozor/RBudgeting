@@ -49,8 +49,30 @@ mod_user_management_ui <- function(id) {
 #' @param auth Deprecated
 mod_user_management_server <- function(id, conn, auth = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
-    
-    users <- shiny::reactiveVal(dplyr::tibble())
+
+    user_admin_log <- function(event, ...) {
+      fragments <- c(event, ...)
+      if (length(fragments) == 0) {
+        return(invisible(NULL))
+      }
+      formatted <- vapply(
+        fragments,
+        function(value) format_scalar_for_log(value, fallback = "<empty>"),
+        character(1)
+      )
+      message(sprintf("[user_admin] %s", paste(formatted, collapse = " | ")))
+      invisible(NULL)
+    }
+
+    users <- shiny::reactiveVal(NULL)
+
+    update_user_choices <- function(data) {
+      choices <- character()
+      if (!is.null(data) && "username" %in% names(data)) {
+        choices <- sort(unique(as.character(data$username)))
+      }
+      shiny::updateSelectInput(session, "selected_user", choices = choices)
+    }
 
     load_users <- function(connection = NULL) {
       if (is.null(connection)) {
@@ -58,23 +80,42 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
       }
 
       if (is.null(connection) || !DBI::dbIsValid(connection)) {
-        return()
+        user_admin_log("load_users:skipped", "connection_unavailable")
+        users(NULL)
+        update_user_choices(NULL)
+        return(invisible(FALSE))
       }
 
-      try({
+      user_admin_log("load_users:start")
+
+      tryCatch({
         data <- db_get_users(connection)
+        row_count <- nrow(data)
+        user_admin_log("load_users:success", sprintf("rows=%s", row_count))
         users(data)
-        shiny::updateSelectInput(session, "selected_user", choices = data$username)
-      }, silent = TRUE)
+        update_user_choices(data)
+        invisible(TRUE)
+      }, error = function(e) {
+        user_admin_log("load_users:error", conditionMessage(e))
+        users(NULL)
+        update_user_choices(NULL)
+        shinyFeedback::showToast("error", "Načtení uživatelů se nezdařilo.")
+        invisible(FALSE)
+      })
     }
 
     initial_connection <- shiny::isolate(conn())
     if (!is.null(initial_connection) && DBI::dbIsValid(initial_connection)) {
+      user_admin_log("init:connection_ready")
       load_users(initial_connection)
+    } else {
+      user_admin_log("init:connection_pending")
     }
 
     output$table <- DT::renderDT({
-      users()
+      data <- users()
+      req(!is.null(data))
+      data
     }, options = list(pageLength = 10, scrollX = TRUE), rownames = FALSE)
 
     shiny::observeEvent(input$save, {
@@ -84,13 +125,16 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
         shinyFeedback::showToast("error", "Databáze není dostupná")
         return()
       }
+      username <- input$username
+      user_admin_log("user_save:attempt", username)
       tryCatch({
-        db_upsert_user(connection, input$username, input$password, fullname = input$fullname, role = input$role, active = input$is_active)
+        db_upsert_user(connection, username, input$password, fullname = input$fullname, role = input$role, active = input$is_active)
         shinyFeedback::showToast("success", "Uživatel uložen")
+        user_admin_log("user_save:success", username)
         load_users()
       }, error = function(e) {
-        message <- conditionMessage(e)
-        shinyFeedback::showToast("error", paste("Uložení se nezdařilo:", message))
+        shinyFeedback::showToast("error", paste("Uložení se nezdařilo:", conditionMessage(e)))
+        user_admin_log("user_save:error", username, conditionMessage(e))
       })
     })
 
@@ -101,18 +145,26 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
         shinyFeedback::showToast("error", "Databáze není dostupná")
         return()
       }
-      selected <- dplyr::filter(users(), username == input$selected_user)
+      selected <- users()
+      if (is.null(selected)) {
+        user_admin_log("user_toggle:skipped", "users_not_loaded")
+        return()
+      }
+      selected <- dplyr::filter(selected, username == input$selected_user)
       if (nrow(selected) == 0) {
+        user_admin_log("user_toggle:skipped", sprintf("user=%s_not_found", input$selected_user))
         return()
       }
       new_state <- !isTRUE(selected$is_active[1])
+      user_admin_log("user_toggle:attempt", input$selected_user, sprintf("target_state=%s", new_state))
       tryCatch({
         db_set_user_active(connection, input$selected_user, new_state)
         shinyFeedback::showToast("info", paste0("Uživatel ", input$selected_user, ifelse(new_state, " aktivován", " deaktivován")))
+        user_admin_log("user_toggle:success", input$selected_user, sprintf("target_state=%s", new_state))
         load_users()
       }, error = function(e) {
-        message <- conditionMessage(e)
-        shinyFeedback::showToast("error", paste("Změna stavu selhala:", message))
+        shinyFeedback::showToast("error", paste("Změna stavu selhala:", conditionMessage(e)))
+        user_admin_log("user_toggle:error", input$selected_user, conditionMessage(e))
       })
     })
 
@@ -123,18 +175,20 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
         shinyFeedback::showToast("error", "Databáze není dostupná")
         return()
       }
+      user_admin_log("user_delete:attempt", input$selected_user)
       tryCatch({
         db_delete_user(connection, input$selected_user)
         shinyFeedback::showToast("warning", paste0("Uživatel ", input$selected_user, " odstraněn"))
+        user_admin_log("user_delete:success", input$selected_user)
         load_users()
       }, error = function(e) {
-        message <- conditionMessage(e)
-        shinyFeedback::showToast("error", paste("Smazání selhalo:", message))
+        shinyFeedback::showToast("error", paste("Smazání selhalo:", conditionMessage(e)))
+        user_admin_log("user_delete:error", input$selected_user, conditionMessage(e))
       })
     })
 
     shiny::observeEvent(conn(), {
       load_users()
-    })
+    }, ignoreNULL = FALSE)
   })
 }
