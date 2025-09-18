@@ -8,7 +8,7 @@ get_golem_config <- function(config = c("default", "production")) {
     file = app_sys("golem-config.yml"),
     use_parent = FALSE
   )
-  log_structure("get_golem_config.result", resolved)
+  log_structure("get_golem_config.result", redact_sensitive(resolved))
   resolved
 }
 
@@ -47,7 +47,7 @@ sanitize_db_configuration <- function(db) {
     db <- list()
   }
 
-  log_structure("sanitize_db_configuration.input", db)
+  log_structure("sanitize_db_configuration.input", redact_sensitive(db))
 
   host <- sanitize_scalar_character(db$host, default = "localhost")
   port <- sanitize_scalar_integer(db$port, default = 5432L, min = 1L, max = 65535L)
@@ -58,7 +58,12 @@ sanitize_db_configuration <- function(db) {
 
   dbname <- sanitize_scalar_character(db$dbname, default = "rbudgeting")
   user <- sanitize_scalar_character(db$user, default = "")
-  password <- sanitize_scalar_character(db$password, default = "", allow_empty = TRUE)
+  password <- sanitize_scalar_character(
+    db$password,
+    default = "",
+    allow_empty = TRUE,
+    sensitive = TRUE
+  )
 
   sslmode <- sanitize_scalar_character(db$sslmode, default = "prefer")
   allowed_ssl <- c("disable", "allow", "prefer", "require", "verify-ca", "verify-full")
@@ -74,7 +79,7 @@ sanitize_db_configuration <- function(db) {
     password = password,
     sslmode = sslmode
   )
-  log_structure("sanitize_db_configuration.output", sanitized)
+  log_structure("sanitize_db_configuration.output", redact_sensitive(sanitized))
   sanitized
 }
 
@@ -90,7 +95,7 @@ load_persisted_db_config <- function() {
   tryCatch(
     {
       cfg <- yaml::read_yaml(path, eval.expr = FALSE)
-      log_structure("load_persisted_db_config.raw", cfg)
+      log_structure("load_persisted_db_config.raw", redact_sensitive(cfg))
       if (is.list(cfg$db)) {
         return(cfg$db)
       }
@@ -119,7 +124,7 @@ save_db_config <- function(db_cfg) {
     }
   }
 
-  log_structure("save_db_config.sanitized", sanitized)
+  log_structure("save_db_config.sanitized", redact_sensitive(sanitized))
 
   tryCatch(
     {
@@ -147,11 +152,11 @@ get_db_config <- function() {
 
   stored <- load_persisted_db_config()
   if (is.list(stored) && length(stored) > 0) {
-    log_structure("get_db_config.persisted", stored)
+    log_structure("get_db_config.persisted", redact_sensitive(stored))
     db <- utils::modifyList(db, stored)
   }
 
   sanitized <- sanitize_db_configuration(db)
-  log_structure("get_db_config.final", sanitized)
+  log_structure("get_db_config.final", redact_sensitive(sanitized))
   sanitized
 }

@@ -39,6 +39,31 @@ log_structure <- function(tag, value) {
   message(sprintf("[%s] %s", tag, details))
 }
 
+redact_sensitive <- function(value, fields = c("password")) {
+  if (!is.list(value)) {
+    return(value)
+  }
+
+  fields <- tolower(fields)
+  masked <- value
+  nms <- names(masked)
+
+  for (idx in seq_along(masked)) {
+    current_name <- if (!is.null(nms)) nms[[idx]] else NULL
+
+    if (!is.null(current_name) && tolower(current_name) %in% fields) {
+      masked[[idx]] <- "<redacted>"
+      next
+    }
+
+    if (is.list(masked[[idx]])) {
+      masked[[idx]] <- redact_sensitive(masked[[idx]], fields)
+    }
+  }
+
+  masked
+}
+
 #' Retrieve sanitized application settings
 #'
 #' Ensures configuration values coming from `golem-config.yml` are usable in the
@@ -80,7 +105,7 @@ get_app_settings <- function() {
   list(language = language, default_theme = default_theme)
 }
 
-sanitize_scalar_character <- function(value, default = "", allow_empty = FALSE) {
+sanitize_scalar_character <- function(value, default = "", allow_empty = FALSE, sensitive = FALSE) {
   if (is.null(value) || is.function(value)) {
     log_debug(
       "sanitize_scalar_character",
@@ -139,7 +164,9 @@ sanitize_scalar_character <- function(value, default = "", allow_empty = FALSE) 
     return(default)
   }
 
-  log_debug("sanitize_scalar_character", "Returning sanitized value '", candidate, "'.")
+  if (!sensitive) {
+    log_debug("sanitize_scalar_character", "Returning sanitized value '", candidate, "'.")
+  }
   candidate
 }
 
