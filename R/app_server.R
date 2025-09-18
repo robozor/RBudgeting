@@ -42,7 +42,6 @@ app_server <- function(input, output, session) {
   })
 
   auth <- shinymanager::auth_server(
-    id = "auth",
     check_credentials = credential_checker(conn),
     session = session
   )
