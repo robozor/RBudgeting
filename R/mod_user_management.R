@@ -6,7 +6,7 @@ mod_user_management_ui <- function(id) {
   shiny::tagList(
     bslib::card(
       bslib::card_header("Seznam uživatelů"),
-      bslib::card_body(DT::dataTableOutput(ns("table")))
+      bslib::card_body(DT::DTOutput(ns("table")))
     ),
     bslib::layout_columns(
       col_widths = c(8, 4),
