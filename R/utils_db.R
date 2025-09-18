@@ -68,7 +68,59 @@ db_upsert_user <- function(conn, username, password, fullname = NULL, role = "us
 #' @return A tibble of users without exposing hashed passwords.
 db_get_users <- function(conn) {
   stopifnot(DBI::dbIsValid(conn))
-  res <- DBI::dbGetQuery(conn, "SELECT id, username, fullname, role, is_active, created_at, updated_at FROM app_users ORDER BY username;")
+
+  metadata <- tryCatch(
+    DBI::dbGetQuery(conn, "SELECT * FROM app_meta.user_account;"),
+    error = function(e) NULL
+  )
+
+  if (!is.null(metadata)) {
+    rename_first <- function(df, target, candidates) {
+      for (candidate in candidates) {
+        if (candidate %in% names(df)) {
+          names(df)[names(df) == candidate] <- target
+          break
+        }
+      }
+      df
+    }
+
+    res <- rename_first(metadata, "username", c("username", "user_name", "login", "login_name"))
+
+    if ("username" %in% names(res)) {
+      res <- rename_first(res, "fullname", c("fullname", "full_name", "name", "display_name"))
+      res <- rename_first(res, "role", c("role", "role_name", "user_role"))
+      res <- rename_first(res, "is_active", c("is_active", "active", "enabled", "is_enabled"))
+      res <- rename_first(res, "created_at", c("created_at", "created", "created_on"))
+      res <- rename_first(res, "updated_at", c("updated_at", "updated", "updated_on", "modified_at"))
+
+      if (!"id" %in% names(res)) {
+        res$id <- seq_len(nrow(res))
+      }
+
+      ensure_cols <- c("fullname", "role", "is_active", "created_at", "updated_at")
+      for (nm in ensure_cols) {
+        if (!nm %in% names(res)) {
+          res[[nm]] <- NA
+        }
+      }
+
+      if (nrow(res) > 0 && "username" %in% names(res) && !all(is.na(res$username))) {
+        res <- res[order(res$username), , drop = FALSE]
+      }
+
+      desired <- c("id", "username", "fullname", "role", "is_active", "created_at", "updated_at")
+      res <- res[, unique(c(desired, names(res))), drop = FALSE]
+
+      return(dplyr::as_tibble(res))
+    }
+  }
+
+  res <- DBI::dbGetQuery(
+    conn,
+    "SELECT id, username, fullname, role, is_active, created_at, updated_at FROM app_users ORDER BY username;"
+  )
+
   dplyr::as_tibble(res)
 }
 
