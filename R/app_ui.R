@@ -52,7 +52,7 @@ app_ui <- function(request) {
       skin = "dark",
       rightUi = shiny::tagList(
         shiny::tags$li(
-          class = "nav-item d-flex align-items-center px-3",
+          class = "nav-item dropdown d-flex align-items-center px-3",
           shiny::icon("user-circle", class = "mr-2"),
           shiny::textOutput("navbar_user", container = shiny::span)
         ),
