@@ -105,13 +105,13 @@ app_server <- function(input, output, session) {
     authed <- isTRUE(auth_result())
 
     if (authed) {
-      shinyjs::addClass(id = "public-setup", class = "public-hidden")
+      shinyjs::addClass(id = "public-shell", class = "public-hidden")
       shinyjs::removeClass(selector = "#secure-content", class = "secure-hidden")
       shinyjs::removeClass(selector = "aside.main-sidebar", class = "secure-hidden")
       shinyjs::removeClass(selector = "#controlbar", class = "secure-hidden")
       shinydashboard::updateTabItems(session, inputId = "main_nav", selected = "content")
     } else {
-      shinyjs::removeClass(id = "public-setup", class = "public-hidden")
+      shinyjs::removeClass(id = "public-shell", class = "public-hidden")
       shinyjs::addClass(selector = "#secure-content", class = "secure-hidden")
       shinyjs::addClass(selector = "aside.main-sidebar", class = "secure-hidden")
       shinyjs::addClass(selector = "#controlbar", class = "secure-hidden")

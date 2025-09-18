@@ -182,12 +182,85 @@ app_ui <- function(request) {
     shiny::tags$p("Configure the database before enabling secure access.")
   )
 
+  public_sidebar <- bs4Dash::bs4DashSidebar(
+    skin = "light",
+    title = "Navigace",
+    collapsed = FALSE,
+    class = "public-menu-disabled",
+    bs4Dash::bs4SidebarMenu(
+      id = "public_nav",
+      bs4Dash::bs4SidebarMenuItem(
+        text = "Instalace systému",
+        tabName = "public_setup",
+        icon = shiny::icon("tools")
+      ),
+      shiny::tagAppendAttributes(
+        bs4Dash::bs4SidebarMenuItem(
+          text = "Obsah",
+          tabName = "public_disabled_content",
+          icon = shiny::icon("home")
+        ),
+        class = "public-disabled"
+      ),
+      shiny::tagAppendAttributes(
+        bs4Dash::bs4SidebarMenuItem(
+          text = "Administrace",
+          tabName = "public_disabled_admin",
+          icon = shiny::icon("cogs")
+        ),
+        class = "public-disabled"
+      )
+    )
+  )
+
+  public_navbar <- bs4Dash::bs4DashNavbar(
+    title = shiny::tags$span("RBudgeting"),
+    skin = "dark",
+    rightUi = shiny::tagList(
+      shiny::tags$li(
+        class = "nav-item dropdown d-flex align-items-center px-3 text-muted",
+        shiny::icon("user-circle", class = "mr-2"),
+        shiny::span("Nepřihlášen")
+      )
+    )
+  )
+
+  public_body <- bs4Dash::bs4DashBody(
+    shinydashboard::tabItems(
+      shinydashboard::tabItem(
+        tabName = "public_setup",
+        bs4Dash::bs4Card(
+          title = "Instalace systému",
+          status = "info",
+          solidHeader = TRUE,
+          width = 12,
+          setup_header,
+          shiny::div(
+            class = "public-setup-body",
+            mod_setup_ui("setup")
+          )
+        )
+      )
+    )
+  )
+
+  public_footer <- bs4Dash::bs4DashFooter(
+    left = "RBudgeting",
+    right = shiny::HTML("<b>Version</b> 0.0.1")
+  )
+
   setup_public <- shiny::div(
-    id = "public-setup",
+    id = "public-shell",
     class = "setup-public-container",
-    use_bs4dash_dependencies(),
-    setup_header,
-    mod_setup_ui("setup")
+    bs4Dash::bs4DashPage(
+      title = "RBudgeting",
+      freshTheme = NULL,
+      preloader = list(html = NULL, color = "#3c8dbc"),
+      navbar = public_navbar,
+      sidebar = public_sidebar,
+      footer = public_footer,
+      body = public_body
+    )
   )
   message(
     sprintf(
@@ -201,7 +274,9 @@ app_ui <- function(request) {
       htmltools::HTML(
         paste0(
           "#secure-content.secure-hidden { display: none !important; }\n",
-          "#public-setup.public-hidden { display: none !important; }"
+          "#public-shell.public-hidden { display: none !important; }\n",
+          "#public-shell .public-disabled > a { pointer-events: none; opacity: 0.5; }\n",
+          "#public-shell .public-disabled .nav-icon { opacity: 0.6; }"
         )
       )
     )
