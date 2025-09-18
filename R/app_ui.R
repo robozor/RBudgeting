@@ -16,6 +16,7 @@ app_ui <- function(request) {
     bslib::nav_panel("Instalace", value = "setup", mod_setup_ui("setup")),
     bslib::nav_panel("Obsah", value = "content", shiny::uiOutput("content_nav")),
     bslib::nav_panel("Uživatelé", value = "users", shiny::uiOutput("users_panel")),
+    bslib::nav_item(shiny::uiOutput("theme_toggle_ui")),
     bslib::nav_spacer(),
     bslib::nav_item(
       shiny::div(class = "navbar-text", shiny::uiOutput("user_badge"))

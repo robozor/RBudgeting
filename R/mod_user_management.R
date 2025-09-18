@@ -6,37 +6,46 @@ mod_user_management_ui <- function(id) {
   shiny::tagList(
     bslib::card(
       bslib::card_header("Seznam uživatelů"),
-      bslib::card_body(DT::DTOutput(ns("table")))
-    ),
-    bslib::layout_columns(
-      col_widths = c(8, 4),
-      bslib::card(
-        bslib::card_header("Přidat nebo upravit uživatele"),
-        bslib::card_body(
-          bslib::layout_columns(
-            col_widths = c(6, 6),
-            shiny::textInput(ns("username"), "Uživatelské jméno"),
-            shiny::textInput(ns("fullname"), "Celé jméno")
+      bslib::card_body(
+        shiny::div(
+          class = "d-flex flex-wrap gap-2 justify-content-end mb-3",
+          shiny::actionButton(
+            ns("set_inactive"),
+            "Nastavit na neaktivní",
+            icon = shiny::icon("user-slash"),
+            class = "btn btn-outline-secondary"
           ),
-          bslib::layout_columns(
-            col_widths = c(6, 6),
-            shiny::selectInput(ns("role"), "Role", choices = c("user", "manager", "admin")),
-            shiny::checkboxInput(ns("is_active"), "Aktivní", value = TRUE)
+          shiny::actionButton(
+            ns("set_active"),
+            "Nastavit na aktivní",
+            icon = shiny::icon("user-check"),
+            class = "btn btn-outline-primary"
           ),
-          shiny::passwordInput(ns("password"), "Heslo"),
-          shiny::actionButton(ns("save"), "Uložit uživatele", icon = shiny::icon("save"), class = "btn btn-primary")
-        )
-      ),
-      bslib::card(
-        bslib::card_header("Další akce"),
-        bslib::card_body(
-          shiny::selectInput(ns("selected_user"), "Vyberte uživatele", choices = NULL),
-          bslib::layout_columns(
-            col_widths = c(6, 6),
-            shiny::actionButton(ns("deactivate"), "Přepnout aktivitu", icon = shiny::icon("user-slash"), class = "btn btn-outline-primary"),
-            shiny::actionButton(ns("delete"), "Smazat", icon = shiny::icon("trash"), class = "btn btn-outline-danger")
+          shiny::actionButton(
+            ns("delete_selected"),
+            "Smazat uživatele",
+            icon = shiny::icon("trash"),
+            class = "btn btn-outline-danger"
           )
-        )
+        ),
+        DT::DTOutput(ns("table"))
+      )
+    ),
+    bslib::card(
+      bslib::card_header("Přidat nebo upravit uživatele"),
+      bslib::card_body(
+        bslib::layout_columns(
+          col_widths = c(6, 6),
+          shiny::textInput(ns("username"), "Uživatelské jméno"),
+          shiny::textInput(ns("fullname"), "Celé jméno")
+        ),
+        bslib::layout_columns(
+          col_widths = c(6, 6),
+          shiny::selectInput(ns("role"), "Role", choices = c("user", "manager", "admin")),
+          shiny::checkboxInput(ns("is_active"), "Aktivní", value = TRUE)
+        ),
+        shiny::passwordInput(ns("password"), "Heslo"),
+        shiny::actionButton(ns("save"), "Uložit uživatele", icon = shiny::icon("save"), class = "btn btn-primary")
       )
     )
   )
@@ -72,16 +81,22 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
       fullname = character(),
       role = character(),
       is_active = logical(),
+      theme_preference = character(),
       created_at = as.POSIXct(character()),
       updated_at = as.POSIXct(character())
     )
 
-    update_user_choices <- function(data) {
-      choices <- character()
-      if (!is.null(data) && "username" %in% names(data)) {
-        choices <- sort(unique(as.character(data$username)))
+    get_selected_usernames <- function() {
+      data <- users()
+      selected_rows <- input$table_rows_selected
+      if (is.null(data) || nrow(data) == 0 || length(selected_rows) == 0) {
+        return(character())
       }
-      shiny::updateSelectInput(session, "selected_user", choices = choices)
+      valid_rows <- selected_rows[selected_rows %in% seq_len(nrow(data))]
+      if (length(valid_rows) == 0) {
+        return(character())
+      }
+      unique(as.character(data$username[valid_rows]))
     }
 
     load_users <- function(connection = NULL) {
@@ -92,7 +107,6 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
       if (is.null(connection) || !DBI::dbIsValid(connection)) {
         user_admin_log("load_users:skipped", "connection_unavailable")
         users(NULL)
-        update_user_choices(NULL)
         return(invisible(FALSE))
       }
 
@@ -103,12 +117,10 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
         row_count <- nrow(data)
         user_admin_log("load_users:success", sprintf("rows=%s", row_count))
         users(data)
-        update_user_choices(data)
         invisible(TRUE)
       }, error = function(e) {
         user_admin_log("load_users:error", conditionMessage(e))
         users(NULL)
-        update_user_choices(NULL)
         shinyFeedback::showToast("error", "Načtení uživatelů se nezdařilo.")
         invisible(FALSE)
       })
@@ -138,7 +150,7 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
       }
 
       data
-    }, options = list(pageLength = 10, scrollX = TRUE), rownames = FALSE)
+    }, options = list(pageLength = 10, scrollX = TRUE), rownames = FALSE, selection = "multiple")
 
     shiny::observeEvent(input$save, {
       shiny::req(input$username, input$password)
@@ -160,53 +172,87 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
       })
     })
 
-    shiny::observeEvent(input$deactivate, {
-      shiny::req(input$selected_user)
+    change_user_state <- function(target_state, log_event) {
+      usernames <- get_selected_usernames()
+      if (length(usernames) == 0) {
+        shinyFeedback::showToast("warning", "Vyberte alespoň jednoho uživatele.")
+        user_admin_log(sprintf("%s:skipped", log_event), "no_selection")
+        return()
+      }
       connection <- conn()
       if (is.null(connection) || !DBI::dbIsValid(connection)) {
         shinyFeedback::showToast("error", "Databáze není dostupná")
         return()
       }
-      selected <- users()
-      if (is.null(selected)) {
-        user_admin_log("user_toggle:skipped", "users_not_loaded")
-        return()
-      }
-      selected <- dplyr::filter(selected, username == input$selected_user)
-      if (nrow(selected) == 0) {
-        user_admin_log("user_toggle:skipped", sprintf("user=%s_not_found", input$selected_user))
-        return()
-      }
-      new_state <- !isTRUE(selected$is_active[1])
-      user_admin_log("user_toggle:attempt", input$selected_user, sprintf("target_state=%s", new_state))
-      tryCatch({
-        db_set_user_active(connection, input$selected_user, new_state)
-        shinyFeedback::showToast("info", paste0("Uživatel ", input$selected_user, ifelse(new_state, " aktivován", " deaktivován")))
-        user_admin_log("user_toggle:success", input$selected_user, sprintf("target_state=%s", new_state))
-        load_users()
+      user_admin_log(sprintf("%s:attempt", log_event), sprintf("count=%s", length(usernames)), paste(usernames, collapse = ","))
+      result <- tryCatch({
+        DBI::dbWithTransaction(connection, {
+          for (username in usernames) {
+            db_set_user_active(connection, username, target_state)
+          }
+        })
+        TRUE
       }, error = function(e) {
         shinyFeedback::showToast("error", paste("Změna stavu selhala:", conditionMessage(e)))
-        user_admin_log("user_toggle:error", input$selected_user, conditionMessage(e))
+        user_admin_log(sprintf("%s:error", log_event), conditionMessage(e))
+        FALSE
       })
+      if (isTRUE(result)) {
+        state_label <- ifelse(target_state, "aktivní", "neaktivní")
+        label <- if (length(usernames) == 1) {
+          sprintf("Uživatel %s nastaven jako %s.", usernames, state_label)
+        } else {
+          sprintf("Uživatelé (%s) nastaveni jako %s.", paste(usernames, collapse = ", "), state_label)
+        }
+        shinyFeedback::showToast("info", label)
+        user_admin_log(sprintf("%s:success", log_event), sprintf("count=%s", length(usernames)))
+        load_users()
+      }
+    }
+
+    shiny::observeEvent(input$set_inactive, {
+      change_user_state(FALSE, "user_deactivate")
     })
 
-    shiny::observeEvent(input$delete, {
-      shiny::req(input$selected_user)
+    shiny::observeEvent(input$set_active, {
+      change_user_state(TRUE, "user_activate")
+    })
+
+    shiny::observeEvent(input$delete_selected, {
+      usernames <- get_selected_usernames()
+      if (length(usernames) == 0) {
+        shinyFeedback::showToast("warning", "Vyberte alespoň jednoho uživatele.")
+        user_admin_log("user_delete:skipped", "no_selection")
+        return()
+      }
       connection <- conn()
       if (is.null(connection) || !DBI::dbIsValid(connection)) {
         shinyFeedback::showToast("error", "Databáze není dostupná")
         return()
       }
-      user_admin_log("user_delete:attempt", input$selected_user)
-      tryCatch({
-        db_delete_user(connection, input$selected_user)
-        shinyFeedback::showToast("warning", paste0("Uživatel ", input$selected_user, " odstraněn"))
-        user_admin_log("user_delete:success", input$selected_user)
-        load_users()
+      user_admin_log("user_delete:attempt", sprintf("count=%s", length(usernames)), paste(usernames, collapse = ","))
+      result <- tryCatch({
+        DBI::dbWithTransaction(connection, {
+          for (username in usernames) {
+            db_delete_user(connection, username)
+          }
+        })
+        TRUE
       }, error = function(e) {
         shinyFeedback::showToast("error", paste("Smazání selhalo:", conditionMessage(e)))
-        user_admin_log("user_delete:error", input$selected_user, conditionMessage(e))
+        user_admin_log("user_delete:error", conditionMessage(e))
+        FALSE
       })
+      if (isTRUE(result)) {
+        label <- if (length(usernames) == 1) {
+          sprintf("Uživatel %s odstraněn ze systému.", usernames)
+        } else {
+          sprintf("Uživatelé (%s) odstraněni ze systému.", paste(usernames, collapse = ", "))
+        }
+        shinyFeedback::showToast("warning", label)
+        user_admin_log("user_delete:success", sprintf("count=%s", length(usernames)))
+        load_users()
+      }
     })
 
     shiny::observeEvent(conn(), {

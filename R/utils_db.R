@@ -40,6 +40,10 @@ db_disconnect <- function(conn) {
 db_install_schema <- function(conn) {
   stopifnot(DBI::dbIsValid(conn))
   DBI::dbExecute(conn, "CREATE TABLE IF NOT EXISTS app_users (\n    id SERIAL PRIMARY KEY,\n    username TEXT NOT NULL UNIQUE,\n    password TEXT NOT NULL,\n    fullname TEXT,\n    role TEXT NOT NULL DEFAULT 'user',\n    is_active BOOLEAN NOT NULL DEFAULT TRUE,\n    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),\n    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()\n  );")
+  DBI::dbExecute(conn, "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS theme_preference TEXT;")
+  DBI::dbExecute(conn, "ALTER TABLE app_users ALTER COLUMN theme_preference SET DEFAULT 'light';")
+  DBI::dbExecute(conn, "UPDATE app_users SET theme_preference = 'light' WHERE theme_preference IS NULL;")
+  DBI::dbExecute(conn, "ALTER TABLE app_users ALTER COLUMN theme_preference SET NOT NULL;")
   DBI::dbExecute(conn, "CREATE OR REPLACE FUNCTION trigger_set_timestamp()\nRETURNS TRIGGER AS $$\nBEGIN\n  NEW.updated_at = NOW();\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;")
   DBI::dbExecute(conn, "DROP TRIGGER IF EXISTS set_timestamp ON app_users;")
   DBI::dbExecute(conn, "CREATE TRIGGER set_timestamp\nBEFORE UPDATE ON app_users\nFOR EACH ROW\nEXECUTE PROCEDURE trigger_set_timestamp();")
@@ -73,7 +77,7 @@ db_get_users <- function(conn) {
 
   base <- DBI::dbGetQuery(
     conn,
-    "SELECT id, username, fullname, role, is_active, created_at, updated_at FROM app_users ORDER BY username;"
+    "SELECT id, username, fullname, role, is_active, theme_preference, created_at, updated_at FROM app_users ORDER BY username;"
   )
 
   log_debug("db_get_users", sprintf("Primary query returned %s rows.", nrow(base)))
@@ -127,10 +131,11 @@ db_get_users <- function(conn) {
   meta <- rename_first(meta, "fullname", c("fullname", "full_name", "name", "display_name"))
   meta <- rename_first(meta, "role", c("role", "role_name", "user_role"))
   meta <- rename_first(meta, "is_active", c("is_active", "active", "enabled", "is_enabled"))
+  meta <- rename_first(meta, "theme_preference", c("theme_preference", "theme", "appearance", "mode"))
   meta <- rename_first(meta, "created_at", c("created_at", "created", "created_on"))
   meta <- rename_first(meta, "updated_at", c("updated_at", "updated", "updated_on", "modified_at"))
 
-  ensure_cols <- c("fullname", "role", "is_active", "created_at", "updated_at")
+  ensure_cols <- c("fullname", "role", "is_active", "theme_preference", "created_at", "updated_at")
   for (nm in ensure_cols) {
     if (!nm %in% names(meta)) {
       meta[[nm]] <- NA
@@ -179,6 +184,7 @@ db_get_users <- function(conn) {
   joined$fullname <- coalesce_cols("fullname", "fullname.meta")
   joined$role <- coalesce_cols("role", "role.meta")
   joined$is_active <- coalesce_cols("is_active", "is_active.meta")
+  joined$theme_preference <- coalesce_cols("theme_preference", "theme_preference.meta")
   joined$created_at <- coalesce_cols("created_at", "created_at.meta")
   joined$updated_at <- coalesce_cols("updated_at", "updated_at.meta")
 
@@ -212,6 +218,40 @@ db_get_user <- function(conn, username) {
 db_set_user_active <- function(conn, username, active = TRUE) {
   stopifnot(DBI::dbIsValid(conn))
   DBI::dbExecute(conn, "UPDATE app_users SET is_active = $1 WHERE username = $2;", params = list(active, username))
+  TRUE
+}
+
+#' Retrieve stored theme preference for a user
+#' @param conn Active connection
+#' @param username Username to read
+#' @param default Fallback theme when no value is stored
+#' @return Character scalar with theme identifier
+db_get_user_theme <- function(conn, username, default = "light") {
+  stopifnot(DBI::dbIsValid(conn))
+  res <- DBI::dbGetQuery(conn, "SELECT theme_preference FROM app_users WHERE username = $1 LIMIT 1;", params = list(username))
+  if (nrow(res) == 0) {
+    return(default)
+  }
+  preference <- res$theme_preference[1]
+  if (!is.character(preference) || is.na(preference) || !nzchar(preference)) {
+    default
+  } else {
+    preference
+  }
+}
+
+#' Persist theme preference for a user
+#' @param conn Active connection
+#' @param username Username to update
+#' @param theme Theme identifier, either "light" or "dark"
+#' @return TRUE when the update was successful
+db_set_user_theme <- function(conn, username, theme) {
+  stopifnot(DBI::dbIsValid(conn))
+  allowed <- c("light", "dark")
+  if (!theme %in% allowed) {
+    stop(sprintf("Neplatné téma: %s", theme))
+  }
+  DBI::dbExecute(conn, "UPDATE app_users SET theme_preference = $1 WHERE username = $2;", params = list(theme, username))
   TRUE
 }
 
