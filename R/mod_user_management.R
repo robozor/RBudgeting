@@ -52,15 +52,25 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
     
     users <- shiny::reactiveVal(dplyr::tibble())
 
-    load_users <- function() {
-      connection <- conn()
+    load_users <- function(connection = NULL) {
+      if (is.null(connection)) {
+        connection <- conn()
+      }
+
       if (is.null(connection) || !DBI::dbIsValid(connection)) {
         return()
       }
+
       try({
-        users(db_get_users(connection))
-        shiny::updateSelectInput(session, "selected_user", choices = users()$username)
+        data <- db_get_users(connection)
+        users(data)
+        shiny::updateSelectInput(session, "selected_user", choices = data$username)
       }, silent = TRUE)
+    }
+
+    initial_connection <- shiny::isolate(conn())
+    if (!is.null(initial_connection) && DBI::dbIsValid(initial_connection)) {
+      load_users(initial_connection)
     }
 
     output$table <- DT::renderDT({
