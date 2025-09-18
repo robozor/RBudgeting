@@ -41,9 +41,10 @@ app_server <- function(input, output, session) {
     db_disconnect(connection)
   })
 
-  auth <- shinymanager::auth_server(
-    check_credentials = credential_checker(conn),
-    session = session
+  auth <- shinymanager_auth_server(
+    "auth",
+    session = session,
+    check_credentials = credential_checker(conn)
   )
 
   shinymanager_logout_module(id = "logout", active = shiny::reactive(auth$result))
