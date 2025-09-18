@@ -10,7 +10,13 @@
 #' @param ... Arguments forwarded to the underlying shinymanager logout module.
 shinymanager_logout_module <- function(...) {
   fun <- find_shinymanager_function(
-    c("logoutServer", "logout_server", "logout_module_server")
+    c(
+      "logoutServer",
+      "logout_server",
+      "logout_module_server",
+      "logout_module",
+      "module_logout_server"
+    )
   )
   if (is.null(fun)) {
     stop("Unable to locate a shinymanager logout module.", call. = FALSE)
@@ -27,6 +33,18 @@ find_shinymanager_function <- function(candidates) {
   for (candidate in candidates) {
     if (candidate %in% exports) {
       return(getExportedValue("shinymanager", candidate))
+    }
+  }
+
+  ns <- tryCatch(getNamespace("shinymanager"), error = function(...) NULL)
+  if (!is.null(ns)) {
+    for (candidate in candidates) {
+      if (exists(candidate, envir = ns, inherits = FALSE)) {
+        obj <- get(candidate, envir = ns, inherits = FALSE)
+        if (is.function(obj)) {
+          return(obj)
+        }
+      }
     }
   }
 
