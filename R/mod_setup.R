@@ -37,7 +37,7 @@ mod_setup_ui <- function(id) {
         shiny::actionButton(ns("store"), "Uložit konfiguraci", icon = shiny::icon("save"), class = "btn btn-outline-primary w-100"),
         shiny::actionButton(ns("load"), "Načíst konfiguraci", icon = shiny::icon("folder-open"), class = "btn btn-outline-primary w-100")
       ),
-      bslib::card_divider(),
+      shiny::tags$hr(class = "my-4"),
       shiny::div(
         class = "d-grid gap-3",
         shiny::tags$h4("Vytvoření administrátora"),
