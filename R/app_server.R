@@ -6,6 +6,12 @@ app_server <- function(input, output, session) {
   app_settings <- get_app_settings()
 
   conn <- shiny::reactiveVal(NULL)
+  default_theme <- app_settings$default_theme %||% "light"
+  user_theme <- shiny::reactiveVal(default_theme)
+
+  send_theme <- function(mode) {
+    session$sendCustomMessage("toggle-theme", list(mode = mode))
+  }
 
   shiny::observeEvent(TRUE, {
     tryCatch({
@@ -38,6 +44,10 @@ app_server <- function(input, output, session) {
     isTRUE(auth$result)
   })
 
+  shiny::observeEvent(TRUE, {
+    send_theme(user_theme())
+  }, once = TRUE)
+
   current_user <- shiny::reactive({
     shiny::req(is_authenticated())
     info <- auth$info
@@ -69,6 +79,16 @@ app_server <- function(input, output, session) {
     } else {
       shiny::actionButton("show_login", "Přihlásit se", class = "btn btn-primary")
     }
+  })
+
+  output$theme_toggle_ui <- shiny::renderUI({
+    if (!is_authenticated()) {
+      return(NULL)
+    }
+    shiny::div(
+      class = "navbar-text custom-theme-toggle",
+      shiny::checkboxInput("theme_dark", "Tmavé téma", value = identical(user_theme(), "dark"))
+    )
   })
 
   shiny::observeEvent(input$show_login, {
@@ -114,6 +134,75 @@ app_server <- function(input, output, session) {
       )
     }
   })
+
+  shiny::observeEvent(
+    list(is_authenticated(), conn()),
+    {
+      connection <- conn()
+      if (is.null(connection) || !DBI::dbIsValid(connection)) {
+        return()
+      }
+      if (is_authenticated()) {
+        username <- auth$user %||% ""
+        if (!nzchar(username)) {
+          return()
+        }
+        preference <- tryCatch(
+          db_get_user_theme(connection, username, default = default_theme),
+          error = function(e) {
+            shinyFeedback::showToast("error", paste("Načtení tématu selhalo:", conditionMessage(e)))
+            default_theme
+          }
+        )
+        user_theme(preference)
+      } else {
+        user_theme(default_theme)
+      }
+    },
+    ignoreNULL = FALSE
+  )
+
+  shiny::observeEvent(user_theme(), {
+    send_theme(user_theme())
+    shiny::updateCheckboxInput(session, "theme_dark", value = identical(user_theme(), "dark"))
+  })
+
+  shiny::observeEvent(input$theme_dark, {
+    if (!is_authenticated()) {
+      shiny::updateCheckboxInput(session, "theme_dark", value = identical(user_theme(), "dark"))
+      return()
+    }
+    value <- input$theme_dark
+    if (is.null(value)) {
+      return()
+    }
+    target <- if (isTRUE(value)) "dark" else "light"
+    if (identical(target, user_theme())) {
+      return()
+    }
+    connection <- conn()
+    if (is.null(connection) || !DBI::dbIsValid(connection)) {
+      shinyFeedback::showToast("error", "Databáze není dostupná")
+      shiny::updateCheckboxInput(session, "theme_dark", value = identical(user_theme(), "dark"))
+      return()
+    }
+    username <- auth$user %||% ""
+    if (!nzchar(username)) {
+      shiny::updateCheckboxInput(session, "theme_dark", value = identical(user_theme(), "dark"))
+      return()
+    }
+    tryCatch({
+      db_set_user_theme(connection, username, target)
+      user_theme(target)
+      shinyFeedback::showToast(
+        "success",
+        if (target == "dark") "Téma aplikace změněno na tmavé." else "Téma aplikace změněno na světlé."
+      )
+    }, error = function(e) {
+      shinyFeedback::showToast("error", paste("Uložení tématu selhalo:", conditionMessage(e)))
+      shiny::updateCheckboxInput(session, "theme_dark", value = identical(user_theme(), "dark"))
+    })
+  }, ignoreNULL = FALSE)
 
   mod_setup_server("setup", conn = conn, config = db_cfg)
   mod_content_server("content", current_user = current_user, is_authenticated = is_authenticated)
