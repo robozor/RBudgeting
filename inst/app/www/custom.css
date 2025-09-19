@@ -143,3 +143,44 @@ body.dark-mode .badge.bg-primary {
 body.dark-mode .badge.bg-secondary {
   background-color: #4b5563;
 }
+
+.shiny-notification {
+  min-width: 320px;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.15);
+  border: none;
+}
+
+.shiny-notification .shiny-notification-close {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.shiny-notification .shiny-notification-close:hover,
+.shiny-notification .shiny-notification-close:focus {
+  opacity: 1;
+}
+
+body.light-mode .shiny-notification-error,
+body.dark-mode .shiny-notification-error {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+body.light-mode .shiny-notification-warning,
+body.dark-mode .shiny-notification-warning {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+body.light-mode .shiny-notification-message,
+body.dark-mode .shiny-notification-message {
+  background-color: #198754;
+  color: #fff;
+}
+
+body.dark-mode .shiny-notification-warning {
+  color: #111827;
+}
