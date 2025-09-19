@@ -66,6 +66,7 @@ mod_user_management_ui <- function(id) {
 #' @param auth Deprecated
 mod_user_management_server <- function(id, conn, auth = NULL) {
   shiny::moduleServer(id, function(input, output, session) {
+    ns <- session$ns
 
     user_admin_log <- function(event, ...) {
       fragments <- c(event, ...)
