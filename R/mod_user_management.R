@@ -1,3 +1,5 @@
+user_role_choices <- c("user", "manager", "admin")
+
 #' user_management Module UI
 #'
 #' @param id Module id
@@ -9,6 +11,12 @@ mod_user_management_ui <- function(id) {
       bslib::card_body(
         shiny::div(
           class = "d-flex flex-wrap gap-2 justify-content-end mb-3",
+          shiny::actionButton(
+            ns("edit_user"),
+            "Editace",
+            icon = shiny::icon("pen-to-square"),
+            class = "btn btn-outline-secondary"
+          ),
           shiny::actionButton(
             ns("set_inactive"),
             "Nastavit na neaktivní",
@@ -41,7 +49,7 @@ mod_user_management_ui <- function(id) {
         ),
         bslib::layout_columns(
           col_widths = c(6, 6),
-          shiny::selectInput(ns("role"), "Role", choices = c("user", "manager", "admin")),
+          shiny::selectInput(ns("role"), "Role", choices = user_role_choices),
           shiny::checkboxInput(ns("is_active"), "Aktivní", value = TRUE)
         ),
         shiny::passwordInput(ns("password"), "Heslo"),
@@ -74,6 +82,7 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
     }
 
     users <- shiny::reactiveVal(NULL)
+    edit_state <- shiny::reactiveValues(username = NULL)
 
     empty_user_table <- dplyr::tibble(
       id = integer(),
@@ -151,6 +160,105 @@ mod_user_management_server <- function(id, conn, auth = NULL) {
 
       data
     }, options = list(pageLength = 10, scrollX = TRUE), rownames = FALSE, selection = "multiple")
+
+    shiny::observeEvent(input$edit_user, {
+      data <- users()
+      if (is.null(data) || nrow(data) == 0) {
+        shinyFeedback::showToast("warning", "Nejsou dostupní žádní uživatelé k úpravě.")
+        user_admin_log("user_edit:skipped", "no_users")
+        return()
+      }
+
+      usernames <- get_selected_usernames()
+      if (length(usernames) == 0) {
+        shinyFeedback::showToast("warning", "Vyberte uživatele pro editaci.")
+        user_admin_log("user_edit:skipped", "no_selection")
+        return()
+      }
+
+      if (length(usernames) > 1) {
+        shinyFeedback::showToast("warning", "Pro editaci vyberte právě jednoho uživatele.")
+        user_admin_log("user_edit:skipped", sprintf("multiple_selection=%s", length(usernames)))
+        return()
+      }
+
+      username <- usernames[1]
+      row <- data[data$username == username, , drop = FALSE]
+
+      if (nrow(row) != 1) {
+        shinyFeedback::showToast("error", "Vybraného uživatele se nepodařilo načíst.")
+        user_admin_log("user_edit:error", username, "row_not_found")
+        return()
+      }
+
+      edit_state$username <- username
+
+      fullname_value <- row$fullname[1]
+      if (is.na(fullname_value)) {
+        fullname_value <- ""
+      }
+
+      role_value <- row$role[1]
+      if (is.na(role_value) || !role_value %in% user_role_choices) {
+        role_value <- user_role_choices[1]
+      }
+
+      shiny::showModal(
+        shiny::modalDialog(
+          title = sprintf("Editace uživatele %s", username),
+          shiny::textInput(ns("edit_fullname"), "Celé jméno", value = fullname_value),
+          shiny::selectInput(ns("edit_role"), "Role", choices = user_role_choices, selected = role_value),
+          footer = shiny::tagList(
+            shiny::modalButton("Zrušit"),
+            shiny::actionButton(ns("edit_save"), "Uložit změny", class = "btn btn-primary")
+          ),
+          easyClose = FALSE
+        )
+      )
+    })
+
+    shiny::observeEvent(input$edit_save, {
+      username <- edit_state$username
+      if (is.null(username)) {
+        shinyFeedback::showToast("error", "Uložit změny není možné bez vybraného uživatele.")
+        user_admin_log("user_edit:skipped", "missing_context")
+        return()
+      }
+
+      connection <- conn()
+      if (is.null(connection) || !DBI::dbIsValid(connection)) {
+        shinyFeedback::showToast("error", "Databáze není dostupná")
+        return()
+      }
+
+      fullname <- input$edit_fullname
+      if (!is.null(fullname)) {
+        fullname <- trimws(fullname)
+        if (!nzchar(fullname)) {
+          fullname <- NULL
+        }
+      }
+
+      role <- input$edit_role
+      if (is.null(role) || !nzchar(role)) {
+        shinyFeedback::showToast("warning", "Vyberte platnou roli.")
+        user_admin_log("user_edit:skipped", username, "invalid_role")
+        return()
+      }
+
+      user_admin_log("user_edit:attempt", username)
+      tryCatch({
+        db_update_user_profile(connection, username, fullname = fullname, role = role)
+        shinyFeedback::showToast("success", "Změny byly uloženy.")
+        user_admin_log("user_edit:success", username)
+        shiny::removeModal()
+        edit_state$username <- NULL
+        load_users(connection)
+      }, error = function(e) {
+        shinyFeedback::showToast("error", paste("Uložení změn selhalo:", conditionMessage(e)))
+        user_admin_log("user_edit:error", username, conditionMessage(e))
+      })
+    })
 
     shiny::observeEvent(input$save, {
       shiny::req(input$username, input$password)
