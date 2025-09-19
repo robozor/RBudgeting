@@ -210,6 +210,26 @@ db_get_user <- function(conn, username) {
   res[1, , drop = FALSE]
 }
 
+#' Update user profile information without changing credentials
+#' @param conn Active connection
+#' @param username Username to update
+#' @param fullname New full name (can be NULL to clear)
+#' @param role New role identifier
+#' @return TRUE when update executed
+db_update_user_profile <- function(conn, username, fullname = NULL, role) {
+  stopifnot(DBI::dbIsValid(conn))
+  if (missing(role) || is.null(role) || length(role) == 0) {
+    stop("Role musí být vyplněna.")
+  }
+  role_value <- as.character(role[1])
+  if (!isTRUE(nzchar(role_value))) {
+    stop("Role musí být vyplněna.")
+  }
+  query <- "UPDATE app_users SET fullname = $2, role = $3, updated_at = NOW() WHERE username = $1;"
+  DBI::dbExecute(conn, query, params = list(username, fullname, role_value))
+  TRUE
+}
+
 #' Toggle user activation
 #' @param conn Active connection
 #' @param username Username to change
